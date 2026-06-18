@@ -37,12 +37,6 @@ func (g *GoAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.Us
 		fileTrackers[dep] = make(map[string]bool)
 	}
 
-	// 构建依赖集合用于快速查找
-	depSet := make(map[string]bool, len(deps))
-	for _, dep := range deps {
-		depSet[dep] = true
-	}
-
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
@@ -105,15 +99,13 @@ func extractGoImports(content string) []string {
 			continue
 		}
 
-		// 跳过单行注释（整行都是注释）
+		// 跳过整行注释
 		if strings.HasPrefix(line, "//") {
 			continue
 		}
 
-		// 移除行尾注释
-		if idx := strings.Index(line, "//"); idx >= 0 {
-			line = strings.TrimSpace(line[:idx])
-		}
+		// 移除行尾注释（正确处理字符串字面量）
+		line = removeGoLineComment(line)
 
 		// import 块 - 支持 import ( 和 import(
 		if strings.HasPrefix(line, "import") && strings.Contains(line, "(") {
@@ -144,25 +136,60 @@ func extractGoImports(content string) []string {
 	return imports
 }
 
+// removeGoLineComment 移除行尾注释，正确处理字符串字面量
+// 例如: `"fmt" // comment` -> `"fmt"`
+// 例如: `"github.com/foo/bar" // comment` -> `"github.com/foo/bar"`
+func removeGoLineComment(line string) string {
+	// 查找第一个引号
+	quoteIdx := strings.Index(line, `"`)
+	if quoteIdx < 0 {
+		// 没有字符串字面量，直接查找注释
+		if idx := strings.Index(line, "//"); idx >= 0 {
+			return strings.TrimSpace(line[:idx])
+		}
+		return line
+	}
+
+	// 查找字符串字面量的结束引号
+	endQuoteIdx := strings.Index(line[quoteIdx+1:], `"`)
+	if endQuoteIdx < 0 {
+		// 没有结束引号，返回原行
+		return line
+	}
+
+	// 计算结束引号的实际位置
+	endQuoteIdx += quoteIdx + 1
+
+	// 在字符串字面量之后查找注释
+	afterQuote := line[endQuoteIdx+1:]
+	if idx := strings.Index(afterQuote, "//"); idx >= 0 {
+		return strings.TrimSpace(line[:endQuoteIdx+1+idx])
+	}
+
+	return line
+}
+
 // parseGoImportLine 解析单行 import，支持别名
 // 输入: `"fmt"` 或 `alias "fmt"` 或 `"github.com/foo/bar"`
+// 正确处理字符串字面量，不会误删字符串内的 //
 func parseGoImportLine(line string) string {
 	line = strings.TrimSpace(line)
 	if line == "" {
 		return ""
 	}
 
-	// 去掉可能的行尾注释
-	if idx := strings.Index(line, "//"); idx >= 0 {
-		line = strings.TrimSpace(line[:idx])
-	}
-
-	// 找到引号内的内容
+	// 找到第一个引号
 	start := strings.Index(line, `"`)
-	end := strings.LastIndex(line, `"`)
-	if start < 0 || end <= start {
+	if start < 0 {
 		return ""
 	}
 
-	return line[start+1 : end]
+	// 从引号开始查找结束引号
+	end := strings.Index(line[start+1:], `"`)
+	if end < 0 {
+		return ""
+	}
+
+	// 提取引号内的内容
+	return line[start+1 : start+1+end]
 }

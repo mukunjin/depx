@@ -120,90 +120,166 @@ func (j *JSAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.Us
 	return result, err
 }
 
-// removeComments 移除代码中的注释，正确处理字符串字面量
+// removeComments 移除代码中的注释，保留字符串字面量内容
 func removeComments(content string) string {
 	var result strings.Builder
 	result.Grow(len(content))
 
-	i := 0
-	n := len(content)
-
+	i, n := 0, len(content)
 	for i < n {
-		// 检查字符串字面量
-		if content[i] == '"' || content[i] == '\'' || content[i] == '`' {
-			quote := content[i]
-			result.WriteByte(content[i])
-			i++
+		c := content[i]
 
-			// 读取整个字符串
+		// 处理字符串字面量：完整保留
+		if c == '"' || c == '\'' || c == '`' {
+			result.WriteByte(c)
+			i++
 			for i < n {
 				if content[i] == '\\' && i+1 < n {
-					// 转义字符
 					result.WriteByte(content[i])
 					result.WriteByte(content[i+1])
 					i += 2
 					continue
 				}
-				if content[i] == quote {
-					result.WriteByte(content[i])
+				result.WriteByte(content[i])
+				if content[i] == c {
 					i++
 					break
 				}
-				result.WriteByte(content[i])
 				i++
 			}
 			continue
 		}
 
-		// 检查单行注释
-		if i+1 < n && content[i] == '/' && content[i+1] == '/' {
-			// 跳过直到行尾
-			for i < n && content[i] != '\n' {
-				i++
+		// 处理注释
+		if c == '/' && i+1 < n {
+			if content[i+1] == '/' {
+				i = skipLineComment(content, i, n)
+				continue
 			}
-			continue
+			if content[i+1] == '*' {
+				i = skipBlockComment(content, i, n)
+				continue
+			}
 		}
 
-		// 检查多行注释
-		if i+1 < n && content[i] == '/' && content[i+1] == '*' {
-			i += 2
-			// 跳过直到 */
-			for i+1 < n {
-				if content[i] == '*' && content[i+1] == '/' {
-					i += 2
-					break
-				}
-				i++
-			}
-			continue
-		}
-
-		// 普通字符
-		result.WriteByte(content[i])
+		result.WriteByte(c)
 		i++
 	}
 
 	return result.String()
 }
 
+// buildStringMask 构建字符串区域掩码，标记哪些位置在字符串字面量内部
+func buildStringMask(content string) []bool {
+	mask := make([]bool, len(content))
+	i, n := 0, len(content)
+
+	for i < n {
+		c := content[i]
+
+		if c == '"' || c == '\'' || c == '`' {
+			quote := c
+			mask[i] = true // 开始引号
+			i++
+			for i < n {
+				mask[i] = true
+				if content[i] == '\\' && i+1 < n {
+					mask[i+1] = true
+					i += 2
+					continue
+				}
+				if content[i] == quote {
+					i++
+					break
+				}
+				i++
+			}
+			continue
+		}
+
+		// 跳过注释
+		if c == '/' && i+1 < n {
+			if content[i+1] == '/' {
+				for i < n && content[i] != '\n' {
+					mask[i] = true
+					i++
+				}
+				continue
+			}
+			if content[i+1] == '*' {
+				i += 2
+				for i+1 < n {
+					if content[i] == '*' && content[i+1] == '/' {
+						i += 2
+						break
+					}
+					i++
+				}
+				continue
+			}
+		}
+
+		i++
+	}
+
+	return mask
+}
+
+// skipLineComment 跳过单行注释
+func skipLineComment(content string, i, n int) int {
+	for i < n && content[i] != '\n' {
+		i++
+	}
+	return i
+}
+
+// skipBlockComment 跳过多行注释
+func skipBlockComment(content string, i, n int) int {
+	i += 2
+	for i+1 < n {
+		if content[i] == '*' && content[i+1] == '/' {
+			return i + 2
+		}
+		i++
+	}
+	return n
+}
+
 // extractJSImports 从源码中提取所有 import 的模块路径
 func extractJSImports(content string) []string {
 	var imports []string
 
-	// 移除注释以避免误识别
+	// 移除注释
 	cleanContent := removeComments(content)
+	// 构建字符串掩码，标记哪些位置在字符串内部
+	mask := buildStringMask(cleanContent)
 
-	for _, match := range reESMImport.FindAllStringSubmatch(cleanContent, -1) {
-		imports = append(imports, match[1])
+	// 使用 FindAllStringSubmatchIndex 减少内存分配
+	for _, match := range reESMImport.FindAllStringSubmatchIndex(cleanContent, -1) {
+		// match[0] 是整个匹配的起始位置，match[2] 是第一个捕获组的起始位置
+		// 如果整个匹配的起始位置在字符串内部，跳过
+		if mask[match[0]] {
+			continue
+		}
+		imports = append(imports, cleanContent[match[2]:match[3]])
 	}
-	for _, match := range reRequire.FindAllStringSubmatch(cleanContent, -1) {
-		imports = append(imports, match[1])
+	for _, match := range reRequire.FindAllStringSubmatchIndex(cleanContent, -1) {
+		if mask[match[0]] {
+			continue
+		}
+		imports = append(imports, cleanContent[match[2]:match[3]])
 	}
-	for _, match := range reDynamicImport.FindAllStringSubmatch(cleanContent, -1) {
-		imports = append(imports, match[1])
+	for _, match := range reDynamicImport.FindAllStringSubmatchIndex(cleanContent, -1) {
+		if mask[match[0]] {
+			continue
+		}
+		imports = append(imports, cleanContent[match[2]:match[3]])
 	}
-	for _, match := range reExportFrom.FindAllStringSubmatch(cleanContent, -1) {
-		imports = append(imports, match[1])
+	for _, match := range reExportFrom.FindAllStringSubmatchIndex(cleanContent, -1) {
+		if mask[match[0]] {
+			continue
+		}
+		imports = append(imports, cleanContent[match[2]:match[3]])
 	}
 
 	return imports
@@ -212,20 +288,26 @@ func extractJSImports(content string) []string {
 // resolveJSPackageName 从 import path 中提取包名
 // 例如: "lodash/get" -> "lodash", "@org/pkg/sub" -> "@org/pkg"
 func resolveJSPackageName(importPath string) string {
-	// 跳过相对路径
-	if strings.HasPrefix(importPath, ".") || strings.HasPrefix(importPath, "/") {
+	// 跳过相对路径和内置模块
+	if len(importPath) == 0 || importPath[0] == '.' || importPath[0] == '/' {
 		return ""
 	}
 
-	parts := strings.Split(importPath, "/")
-	if len(parts) == 0 {
-		return ""
+	// 查找第一个斜杠
+	slashIdx := strings.Index(importPath, "/")
+	if slashIdx == -1 {
+		return importPath
 	}
 
 	// scoped package: @org/pkg
-	if strings.HasPrefix(parts[0], "@") && len(parts) >= 2 {
-		return parts[0] + "/" + parts[1]
+	if importPath[0] == '@' {
+		// 查找第二个斜杠
+		secondSlash := strings.Index(importPath[slashIdx+1:], "/")
+		if secondSlash == -1 {
+			return importPath
+		}
+		return importPath[:slashIdx+1+secondSlash]
 	}
 
-	return parts[0]
+	return importPath[:slashIdx]
 }
