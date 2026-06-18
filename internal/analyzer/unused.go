@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/depx/depx/internal/manifest"
-	"github.com/depx/depx/internal/usage"
+	"github.com/mukunjin/depx/internal/config"
+	"github.com/mukunjin/depx/internal/manifest"
+	"github.com/mukunjin/depx/internal/usage"
 )
 
 // ScanResult 扫描结果
@@ -20,13 +21,26 @@ type ScanResult struct {
 
 // Scan 扫描项目，检测未使用的依赖
 func Scan(dir string) (*ScanResult, error) {
+	return ScanWithConfig(dir, nil)
+}
+
+// ScanWithConfig 使用配置文件扫描项目
+func ScanWithConfig(dir string, cfg *config.Config) (*ScanResult, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve path: %w", err)
 	}
 
+	// 加载配置
+	if cfg == nil {
+		cfg, err = config.FindAndLoad(absDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config: %w", err)
+		}
+	}
+
 	// 尝试检测项目类型
-	m, err := detectManifest(absDir)
+	m, err := DetectManifest(absDir)
 	if err != nil {
 		return nil, err
 	}
@@ -37,6 +51,14 @@ func Scan(dir string) (*ScanResult, error) {
 		return nil, fmt.Errorf("failed to read dependencies: %w", err)
 	}
 
+	// 过滤被忽略的依赖
+	filteredDeps := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		if !cfg.IsIgnored(dep) {
+			filteredDeps = append(filteredDeps, dep)
+		}
+	}
+
 	// 选择合适的分析器
 	analyzer, err := selectAnalyzer(m.Type())
 	if err != nil {
@@ -44,7 +66,7 @@ func Scan(dir string) (*ScanResult, error) {
 	}
 
 	// 分析使用情况
-	usageMap, err := analyzer.Analyze(absDir, deps)
+	usageMap, err := analyzer.Analyze(absDir, filteredDeps)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze usage: %w", err)
 	}
@@ -53,7 +75,7 @@ func Scan(dir string) (*ScanResult, error) {
 	result := &ScanResult{
 		Path:         absDir,
 		ManifestType: m.Type(),
-		TotalDeps:    len(deps),
+		TotalDeps:    len(filteredDeps),
 		UsageDetails: usageMap,
 	}
 
@@ -68,8 +90,8 @@ func Scan(dir string) (*ScanResult, error) {
 	return result, nil
 }
 
-// detectManifest 检测项目类型
-func detectManifest(dir string) (manifest.Manifest, error) {
+// DetectManifest 检测项目类型
+func DetectManifest(dir string) (manifest.Manifest, error) {
 	// 优先检测 npm
 	if npm, err := manifest.NewNpmManifest(dir); err == nil {
 		return npm, nil
@@ -80,7 +102,17 @@ func detectManifest(dir string) (manifest.Manifest, error) {
 		return gomod, nil
 	}
 
-	return nil, fmt.Errorf("no supported project found (package.json or go.mod)")
+	// 检测 cargo
+	if cargo, err := manifest.NewCargoManifest(dir); err == nil {
+		return cargo, nil
+	}
+
+	// 检测 pip
+	if pip, err := manifest.NewPipManifest(dir); err == nil {
+		return pip, nil
+	}
+
+	return nil, fmt.Errorf("no supported project found (package.json, go.mod, Cargo.toml, or requirements.txt)")
 }
 
 // selectAnalyzer 根据项目类型选择分析器
@@ -90,6 +122,10 @@ func selectAnalyzer(manifestType string) (usage.Analyzer, error) {
 		return usage.NewJSAnalyzer(), nil
 	case "go":
 		return usage.NewGoAnalyzer(), nil
+	case "cargo":
+		return usage.NewRustAnalyzer(), nil
+	case "pip":
+		return usage.NewPythonAnalyzer(), nil
 	default:
 		return nil, fmt.Errorf("unsupported manifest type: %s", manifestType)
 	}

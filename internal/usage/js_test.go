@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/depx/depx/internal/manifest"
+	"github.com/mukunjin/depx/internal/manifest"
 )
 
 func TestJSAnalyzer(t *testing.T) {

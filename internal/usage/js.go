@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/depx/depx/internal/manifest"
+	"github.com/mukunjin/depx/internal/manifest"
 )
 
 // JSAnalyzer 分析 JS/TS 文件中的 import 使用

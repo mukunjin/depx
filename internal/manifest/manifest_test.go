@@ -7,73 +7,151 @@ import (
 )
 
 func TestNpmManifest(t *testing.T) {
-	// 创建临时目录
-	tmpDir := t.TempDir()
-
-	// 测试用例 1: 标准 package.json
-	pkgJSON := `{
-		"name": "test-project",
-		"version": "1.0.0",
-		"dependencies": {
-			"axios": "^1.0.0",
-			"lodash": "^4.17.21"
+	tests := []struct {
+		name        string
+		content     string
+		expectError bool
+		checkDeps   func(deps []string) error
+	}{
+		{
+			name: "standard package.json",
+			content: `{
+				"name": "test-project",
+				"version": "1.0.0",
+				"dependencies": {
+					"axios": "^1.0.0",
+					"lodash": "^4.17.21"
+				},
+				"devDependencies": {
+					"jest": "^29.0.0"
+				}
+			}`,
+			expectError: false,
+			checkDeps: func(deps []string) error {
+				if len(deps) != 3 {
+					return &testError{msg: "expected 3 deps"}
+				}
+				depMap := toMap(deps)
+				for _, pkg := range []string{"axios", "lodash", "jest"} {
+					if !depMap[pkg] {
+						return &testError{msg: "missing " + pkg}
+					}
+				}
+				return nil
+			},
 		},
-		"devDependencies": {
-			"jest": "^29.0.0"
-		}
-	}`
-
-	pkgPath := filepath.Join(tmpDir, "package.json")
-	if err := os.WriteFile(pkgPath, []byte(pkgJSON), 0644); err != nil {
-		t.Fatal(err)
+		{
+			name:        "empty dependencies",
+			content:     `{"name": "empty", "version": "1.0.0"}`,
+			expectError: false,
+			checkDeps: func(deps []string) error {
+				if len(deps) != 0 {
+					return &testError{msg: "expected 0 deps"}
+				}
+				return nil
+			},
+		},
+		{
+			name: "only devDependencies",
+			content: `{
+				"name": "dev-only",
+				"devDependencies": {
+					"jest": "^29.0.0",
+					"eslint": "^8.0.0"
+				}
+			}`,
+			expectError: false,
+			checkDeps: func(deps []string) error {
+				if len(deps) != 2 {
+					return &testError{msg: "expected 2 deps"}
+				}
+				return nil
+			},
+		},
+		{
+			name: "scoped packages",
+			content: `{
+				"name": "scoped",
+				"dependencies": {
+					"@types/node": "^18.0.0",
+					"@babel/core": "^7.0.0"
+				}
+			}`,
+			expectError: false,
+			checkDeps: func(deps []string) error {
+				if len(deps) != 2 {
+					return &testError{msg: "expected 2 deps"}
+				}
+				depMap := toMap(deps)
+				if !depMap["@types/node"] || !depMap["@babel/core"] {
+					return &testError{msg: "missing scoped packages"}
+				}
+				return nil
+			},
+		},
+		{
+			name:        "invalid JSON",
+			content:     `{invalid json}`,
+			expectError: true,
+		},
 	}
 
-	manifest, err := NewNpmManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewNpmManifest failed: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			pkgPath := filepath.Join(tmpDir, "package.json")
+			if err := os.WriteFile(pkgPath, []byte(tt.content), 0644); err != nil {
+				t.Fatal(err)
+			}
 
-	if manifest.Type() != "npm" {
-		t.Errorf("Expected type 'npm', got '%s'", manifest.Type())
-	}
+			manifest, err := NewNpmManifest(tmpDir)
+			if err != nil {
+				if !tt.expectError {
+					t.Fatalf("NewNpmManifest failed: %v", err)
+				}
+				return
+			}
 
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
+			if manifest.Type() != "npm" {
+				t.Errorf("Expected type 'npm', got '%s'", manifest.Type())
+			}
 
-	// 应该包含 3 个依赖
-	if len(deps) != 3 {
-		t.Errorf("Expected 3 dependencies, got %d", len(deps))
-	}
+			deps, err := manifest.Dependencies()
+			if err != nil {
+				if !tt.expectError {
+					t.Fatalf("Dependencies failed: %v", err)
+				}
+				return
+			}
 
-	// 检查依赖是否包含
-	depMap := make(map[string]bool)
-	for _, dep := range deps {
-		depMap[dep] = true
-	}
-
-	expected := []string{"axios", "lodash", "jest"}
-	for _, exp := range expected {
-		if !depMap[exp] {
-			t.Errorf("Expected dependency '%s' not found", exp)
-		}
+			if tt.checkDeps != nil {
+				if err := tt.checkDeps(deps); err != nil {
+					t.Error(err)
+				}
+			}
+		})
 	}
 }
 
 func TestNpmManifestMissing(t *testing.T) {
 	tmpDir := t.TempDir()
-
 	_, err := NewNpmManifest(tmpDir)
 	if err == nil {
-		t.Error("Expected error for missing package.json, got nil")
+		t.Error("Expected error for missing package.json")
 	}
 }
 
 func TestGoModManifest(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	goMod := `module example.com/test
+	tests := []struct {
+		name        string
+		content     string
+		expectError bool
+		expectedLen int
+		checkDeps   func(deps []string) error
+	}{
+		{
+			name: "standard go.mod",
+			content: `module example.com/test
 
 go 1.21
 
@@ -81,339 +159,138 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/text v0.14.0 // indirect
-)
-`
+)`,
+			expectError: false,
+			expectedLen: 2,
+			checkDeps: func(deps []string) error {
+				depMap := toMap(deps)
+				if !depMap["github.com/gin-gonic/gin"] {
+					return &testError{msg: "missing gin"}
+				}
+				if !depMap["github.com/spf13/cobra"] {
+					return &testError{msg: "missing cobra"}
+				}
+				if depMap["golang.org/x/text"] {
+					return &testError{msg: "indirect dep should be excluded"}
+				}
+				return nil
+			},
+		},
+		{
+			name: "empty go.mod",
+			content: `module example.com/test
 
-	modPath := filepath.Join(tmpDir, "go.mod")
-	if err := os.WriteFile(modPath, []byte(goMod), 0644); err != nil {
-		t.Fatal(err)
+go 1.21`,
+			expectError: false,
+			expectedLen: 0,
+		},
+		{
+			name: "only indirect deps",
+			content: `module example.com/test
+
+go 1.21
+
+require (
+	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+)`,
+			expectError: false,
+			expectedLen: 0,
+		},
+		{
+			name: "single require",
+			content: `module example.com/test
+
+go 1.21
+
+require github.com/gin-gonic/gin v1.9.1`,
+			expectError: false,
+			expectedLen: 1,
+			checkDeps: func(deps []string) error {
+				if len(deps) != 1 || deps[0] != "github.com/gin-gonic/gin" {
+					return &testError{msg: "wrong dep"}
+				}
+				return nil
+			},
+		},
+		{
+			name: "mixed direct and indirect",
+			content: `module example.com/test
+
+go 1.21
+
+require (
+	github.com/gin-gonic/gin v1.9.1
+	golang.org/x/text v0.14.0 // indirect
+	github.com/spf13/cobra v1.8.0
+)`,
+			expectError: false,
+			expectedLen: 2,
+		},
 	}
 
-	manifest, err := NewGoModManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewGoModManifest failed: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			modPath := filepath.Join(tmpDir, "go.mod")
+			if err := os.WriteFile(modPath, []byte(tt.content), 0644); err != nil {
+				t.Fatal(err)
+			}
 
-	if manifest.Type() != "go" {
-		t.Errorf("Expected type 'go', got '%s'", manifest.Type())
-	}
+			manifest, err := NewGoModManifest(tmpDir)
+			if err != nil {
+				if !tt.expectError {
+					t.Fatalf("NewGoModManifest failed: %v", err)
+				}
+				return
+			}
 
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
+			if manifest.Type() != "go" {
+				t.Errorf("Expected type 'go', got '%s'", manifest.Type())
+			}
 
-	// 应该包含 2 个直接依赖（排除 indirect）
-	if len(deps) != 2 {
-		t.Errorf("Expected 2 dependencies, got %d: %v", len(deps), deps)
-	}
+			deps, err := manifest.Dependencies()
+			if err != nil {
+				if !tt.expectError {
+					t.Fatalf("Dependencies failed: %v", err)
+				}
+				return
+			}
 
-	depMap := make(map[string]bool)
-	for _, dep := range deps {
-		depMap[dep] = true
-	}
+			if len(deps) != tt.expectedLen {
+				t.Errorf("Expected %d deps, got %d: %v", tt.expectedLen, len(deps), deps)
+			}
 
-	if !depMap["github.com/gin-gonic/gin"] {
-		t.Error("Expected 'github.com/gin-gonic/gin' not found")
-	}
-	if !depMap["github.com/spf13/cobra"] {
-		t.Error("Expected 'github.com/spf13/cobra' not found")
-	}
-	if depMap["golang.org/x/text"] {
-		t.Error("Indirect dependency 'golang.org/x/text' should not be included")
+			if tt.checkDeps != nil {
+				if err := tt.checkDeps(deps); err != nil {
+					t.Error(err)
+				}
+			}
+		})
 	}
 }
 
 func TestGoModManifestMissing(t *testing.T) {
 	tmpDir := t.TempDir()
-
 	_, err := NewGoModManifest(tmpDir)
 	if err == nil {
-		t.Error("Expected error for missing go.mod, got nil")
+		t.Error("Expected error for missing go.mod")
 	}
 }
 
-func TestNpmManifestEmpty(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	pkgJSON := `{
-		"name": "empty-project",
-		"version": "1.0.0"
-	}`
-
-	pkgPath := filepath.Join(tmpDir, "package.json")
-	if err := os.WriteFile(pkgPath, []byte(pkgJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest, err := NewNpmManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewNpmManifest failed: %v", err)
-	}
-
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
-
-	if len(deps) != 0 {
-		t.Errorf("Expected 0 dependencies, got %d", len(deps))
-	}
+// Helper types and functions
+type testError struct {
+	msg string
 }
 
-func TestNpmManifestOnlyDevDependencies(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	pkgJSON := `{
-		"name": "dev-only-project",
-		"version": "1.0.0",
-		"devDependencies": {
-			"jest": "^29.0.0",
-			"eslint": "^8.0.0"
-		}
-	}`
-
-	pkgPath := filepath.Join(tmpDir, "package.json")
-	if err := os.WriteFile(pkgPath, []byte(pkgJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest, err := NewNpmManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewNpmManifest failed: %v", err)
-	}
-
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
-
-	if len(deps) != 2 {
-		t.Errorf("Expected 2 dependencies, got %d", len(deps))
-	}
-
-	depMap := make(map[string]bool)
-	for _, dep := range deps {
-		depMap[dep] = true
-	}
-
-	if !depMap["jest"] {
-		t.Error("Expected 'jest' not found")
-	}
-	if !depMap["eslint"] {
-		t.Error("Expected 'eslint' not found")
-	}
+func (e *testError) Error() string {
+	return e.msg
 }
 
-func TestNpmManifestScopedPackages(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	pkgJSON := `{
-		"name": "scoped-project",
-		"dependencies": {
-			"@types/node": "^18.0.0",
-			"@babel/core": "^7.0.0",
-			"lodash": "^4.17.21"
-		}
-	}`
-
-	pkgPath := filepath.Join(tmpDir, "package.json")
-	if err := os.WriteFile(pkgPath, []byte(pkgJSON), 0644); err != nil {
-		t.Fatal(err)
+func toMap(slice []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, s := range slice {
+		m[s] = true
 	}
-
-	manifest, err := NewNpmManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewNpmManifest failed: %v", err)
-	}
-
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
-
-	if len(deps) != 3 {
-		t.Errorf("Expected 3 dependencies, got %d", len(deps))
-	}
-
-	depMap := make(map[string]bool)
-	for _, dep := range deps {
-		depMap[dep] = true
-	}
-
-	if !depMap["@types/node"] {
-		t.Error("Expected '@types/node' not found")
-	}
-	if !depMap["@babel/core"] {
-		t.Error("Expected '@babel/core' not found")
-	}
-}
-
-func TestNpmManifestInvalidJSON(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	pkgJSON := `{invalid json}`
-
-	pkgPath := filepath.Join(tmpDir, "package.json")
-	if err := os.WriteFile(pkgPath, []byte(pkgJSON), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest, err := NewNpmManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewNpmManifest failed: %v", err)
-	}
-
-	_, err = manifest.Dependencies()
-	if err == nil {
-		t.Error("Expected error for invalid JSON, got nil")
-	}
-}
-
-func TestGoModManifestEmpty(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	goMod := `module example.com/test
-
-go 1.21
-`
-
-	modPath := filepath.Join(tmpDir, "go.mod")
-	if err := os.WriteFile(modPath, []byte(goMod), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest, err := NewGoModManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewGoModManifest failed: %v", err)
-	}
-
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
-
-	if len(deps) != 0 {
-		t.Errorf("Expected 0 dependencies, got %d", len(deps))
-	}
-}
-
-func TestGoModManifestOnlyIndirect(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	goMod := `module example.com/test
-
-go 1.21
-
-require (
-	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
-)
-`
-
-	modPath := filepath.Join(tmpDir, "go.mod")
-	if err := os.WriteFile(modPath, []byte(goMod), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest, err := NewGoModManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewGoModManifest failed: %v", err)
-	}
-
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
-
-	if len(deps) != 0 {
-		t.Errorf("Expected 0 dependencies (all indirect), got %d: %v", len(deps), deps)
-	}
-}
-
-func TestGoModManifestSingleRequire(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	goMod := `module example.com/test
-
-go 1.21
-
-require github.com/gin-gonic/gin v1.9.1
-`
-
-	modPath := filepath.Join(tmpDir, "go.mod")
-	if err := os.WriteFile(modPath, []byte(goMod), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest, err := NewGoModManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewGoModManifest failed: %v", err)
-	}
-
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
-
-	if len(deps) != 1 {
-		t.Errorf("Expected 1 dependency, got %d: %v", len(deps), deps)
-	}
-
-	if deps[0] != "github.com/gin-gonic/gin" {
-		t.Errorf("Expected 'github.com/gin-gonic/gin', got '%s'", deps[0])
-	}
-}
-
-func TestGoModManifestMixedDirectAndIndirect(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	goMod := `module example.com/test
-
-go 1.21
-
-require (
-	github.com/gin-gonic/gin v1.9.1
-	golang.org/x/text v0.14.0 // indirect
-	github.com/spf13/cobra v1.8.0
-	golang.org/x/sys v0.15.0 // indirect
-)
-`
-
-	modPath := filepath.Join(tmpDir, "go.mod")
-	if err := os.WriteFile(modPath, []byte(goMod), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest, err := NewGoModManifest(tmpDir)
-	if err != nil {
-		t.Fatalf("NewGoModManifest failed: %v", err)
-	}
-
-	deps, err := manifest.Dependencies()
-	if err != nil {
-		t.Fatalf("Dependencies failed: %v", err)
-	}
-
-	if len(deps) != 2 {
-		t.Errorf("Expected 2 direct dependencies, got %d: %v", len(deps), deps)
-	}
-
-	depMap := make(map[string]bool)
-	for _, dep := range deps {
-		depMap[dep] = true
-	}
-
-	if !depMap["github.com/gin-gonic/gin"] {
-		t.Error("Expected 'github.com/gin-gonic/gin' not found")
-	}
-	if !depMap["github.com/spf13/cobra"] {
-		t.Error("Expected 'github.com/spf13/cobra' not found")
-	}
-	if depMap["golang.org/x/text"] {
-		t.Error("Indirect dependency 'golang.org/x/text' should not be included")
-	}
-	if depMap["golang.org/x/sys"] {
-		t.Error("Indirect dependency 'golang.org/x/sys' should not be included")
-	}
+	return m
 }

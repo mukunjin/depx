@@ -44,7 +44,7 @@ func (g *GoModManifest) Dependencies() ([]string, error) {
 		}
 
 		// 处理 require 块
-		if strings.HasPrefix(line, "require (") {
+		if strings.HasPrefix(line, "require(") || strings.HasPrefix(line, "require (") {
 			inRequire = true
 			continue
 		}

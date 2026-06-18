@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/depx/depx/internal/analyzer"
-	"github.com/depx/depx/internal/report"
+	"github.com/mukunjin/depx/internal/analyzer"
+	"github.com/mukunjin/depx/internal/config"
+	"github.com/mukunjin/depx/internal/report"
 	"github.com/spf13/cobra"
 )
+
+var configPath string
 
 var scanCmd = &cobra.Command{
 	Use:   "scan [path]",
@@ -20,7 +23,24 @@ var scanCmd = &cobra.Command{
 			path = args[0]
 		}
 
-		result, err := analyzer.Scan(path)
+		var cfg *config.Config
+		var err error
+
+		if configPath != "" {
+			cfg, err = config.Load(configPath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			cfg, err = config.FindAndLoad(path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not load config: %v\n", err)
+				cfg = config.DefaultConfig()
+			}
+		}
+
+		result, err := analyzer.ScanWithConfig(path, cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -31,5 +51,6 @@ var scanCmd = &cobra.Command{
 }
 
 func init() {
+	scanCmd.Flags().StringVarP(&configPath, "config", "c", "", "配置文件路径 (.depx.yml)")
 	rootCmd.AddCommand(scanCmd)
 }

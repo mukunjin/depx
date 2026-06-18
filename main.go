@@ -1,6 +1,6 @@
 package main
 
-import "github.com/depx/depx/cmd"
+import "github.com/mukunjin/depx/cmd"
 
 func main() {
 	cmd.Execute()

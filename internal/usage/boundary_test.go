@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/depx/depx/internal/manifest"
+	"github.com/mukunjin/depx/internal/manifest"
 )
 
 // TestBoundary_EmptyFile 测试空文件处理

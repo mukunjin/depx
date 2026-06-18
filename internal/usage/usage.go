@@ -1,6 +1,6 @@
 package usage
 
-import "github.com/depx/depx/internal/manifest"
+import "github.com/mukunjin/depx/internal/manifest"
 
 // Analyzer 定义依赖使用分析器接口
 type Analyzer interface {

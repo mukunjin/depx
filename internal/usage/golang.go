@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/depx/depx/internal/manifest"
+	"github.com/mukunjin/depx/internal/manifest"
 )
 
 // GoAnalyzer 分析 Go 文件中的 import 使用
