@@ -47,10 +47,6 @@ var (
 	reDynamicImport = regexp.MustCompile(`(?m)import\s*\(\s*['"]([^'"]+)['"]\s*\)`)
 	// export ... from 'package'
 	reExportFrom = regexp.MustCompile(`(?m)export\s+(?:[\w*{}\s,]+?\s+from\s+)['"]([^'"]+)['"]`)
-	// 单行注释
-	reSingleLineComment = regexp.MustCompile(`(?m)//.*$`)
-	// 多行注释
-	reMultiLineComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
 )
 
 func (j *JSAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.UsageResult, error) {
@@ -128,17 +124,17 @@ func (j *JSAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.Us
 func removeComments(content string) string {
 	var result strings.Builder
 	result.Grow(len(content))
-	
+
 	i := 0
 	n := len(content)
-	
+
 	for i < n {
 		// 检查字符串字面量
 		if content[i] == '"' || content[i] == '\'' || content[i] == '`' {
 			quote := content[i]
 			result.WriteByte(content[i])
 			i++
-			
+
 			// 读取整个字符串
 			for i < n {
 				if content[i] == '\\' && i+1 < n {
@@ -158,7 +154,7 @@ func removeComments(content string) string {
 			}
 			continue
 		}
-		
+
 		// 检查单行注释
 		if i+1 < n && content[i] == '/' && content[i+1] == '/' {
 			// 跳过直到行尾
@@ -167,7 +163,7 @@ func removeComments(content string) string {
 			}
 			continue
 		}
-		
+
 		// 检查多行注释
 		if i+1 < n && content[i] == '/' && content[i+1] == '*' {
 			i += 2
@@ -181,12 +177,12 @@ func removeComments(content string) string {
 			}
 			continue
 		}
-		
+
 		// 普通字符
 		result.WriteByte(content[i])
 		i++
 	}
-	
+
 	return result.String()
 }
 

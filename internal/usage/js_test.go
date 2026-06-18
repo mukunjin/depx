@@ -186,8 +186,8 @@ import lodash from 'lodash';`,
 			expected: []string{"axios", "lodash"},
 		},
 		{
-			name: "Template literals with slashes",
-			code: "const template = `https://api.example.com/${path}`;\nimport axios from 'axios';",
+			name:     "Template literals with slashes",
+			code:     "const template = `https://api.example.com/${path}`;\nimport axios from 'axios';",
 			expected: []string{"axios"},
 		},
 	}

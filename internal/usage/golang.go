@@ -37,6 +37,12 @@ func (g *GoAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.Us
 		fileTrackers[dep] = make(map[string]bool)
 	}
 
+	// 构建依赖集合用于快速查找
+	depSet := make(map[string]bool, len(deps))
+	for _, dep := range deps {
+		depSet[dep] = true
+	}
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil

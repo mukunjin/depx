@@ -10,12 +10,12 @@ import (
 
 // ScanResult 扫描结果
 type ScanResult struct {
-	Path           string                          // 项目路径
-	ManifestType   string                          // 包管理器类型
-	TotalDeps      int                             // 总依赖数
-	UsedDeps       int                             // 已使用依赖数
-	UnusedDeps     int                             // 未使用依赖数
-	UsageDetails   map[string]*manifest.UsageResult // 每个依赖的使用详情
+	Path         string                           // 项目路径
+	ManifestType string                           // 包管理器类型
+	TotalDeps    int                              // 总依赖数
+	UsedDeps     int                              // 已使用依赖数
+	UnusedDeps   int                              // 未使用依赖数
+	UsageDetails map[string]*manifest.UsageResult // 每个依赖的使用详情
 }
 
 // Scan 扫描项目，检测未使用的依赖

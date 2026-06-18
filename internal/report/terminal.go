@@ -27,7 +27,7 @@ func PrintTerminal(result *analyzer.ScanResult) {
 	// 依赖统计
 	bold.Printf("  %-16s %d\n", "Dependencies:", result.TotalDeps)
 	green.Printf("  %-16s %d\n", "Used:", result.UsedDeps)
-	
+
 	if result.UnusedDeps > 0 {
 		red.Printf("  %-16s %d\n", "Unused:", result.UnusedDeps)
 	} else {
