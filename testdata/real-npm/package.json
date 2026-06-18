@@ -1,0 +1,27 @@
+{
+  "name": "real-world-test",
+  "version": "1.0.0",
+  "description": "Real world test project",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.3.1",
+    "uuid": "^9.0.1",
+    "debug": "^4.3.4",
+    "unused-package-1": "^1.0.0",
+    "unused-package-2": "^2.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1",
+    "eslint": "^8.50.0"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "test-npm-complex",
+  "version": "1.0.0",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "@types/node": "^20.0.0",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "chalk": "^5.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "unused-lib": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "jest": "^29.0.0",
+    "@testing-library/react": "^14.0.0",
+    "unused-dev-tool": "^2.0.0"
+  }
+}
