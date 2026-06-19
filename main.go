@@ -1,7 +1,15 @@
 package main
 
-import "github.com/mukunjin/depx/cmd"
+import (
+	"fmt"
+	"os"
+
+	"github.com/mukunjin/depx/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

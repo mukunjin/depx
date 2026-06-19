@@ -69,7 +69,7 @@ if (-not (Test-Path $SourceExe)) {
     Write-Host "Error: $ExeName not found in $PSScriptRoot" -ForegroundColor Red
     Write-Host ""
     Write-Host "Please build it first:" -ForegroundColor Yellow
-    Write-Host "  go build -ldflags=`"-s -w`" ." -ForegroundColor Yellow
+    Write-Host "  .\build.ps1" -ForegroundColor Yellow
     Write-Host ""
     exit 1
 }
@@ -111,7 +111,8 @@ if (-not $userPath) {
     $userPath = ""
 }
 
-if ($userPath -notlike "*$InstallDir*") {
+$pathDirs = $userPath -split ";" | Where-Object { $_ -ne "" }
+if ($pathDirs -notcontains $InstallDir) {
     if ([string]::IsNullOrWhiteSpace($userPath)) {
         $newPath = $InstallDir
     } else {
@@ -136,7 +137,7 @@ Write-Host ""
 # Test if depx is now accessible
 if (Test-InPath $InstallDir) {
     try {
-        $version = & $DestExe version 2>&1
+        $version = & $DestExe --version 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[OK] Verified: $version" -ForegroundColor Green
             Write-Host ""

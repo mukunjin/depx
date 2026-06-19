@@ -24,6 +24,16 @@ func TestBoundary_EmptyFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// 创建空的 Python 文件
+	if err := os.WriteFile(filepath.Join(tmpDir, "empty.py"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 创建空的 Rust 文件
+	if err := os.WriteFile(filepath.Join(tmpDir, "empty.rs"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	// 测试 JS 分析器
 	jsAnalyzer := NewJSAnalyzer()
 	jsResults, err := jsAnalyzer.Analyze(tmpDir, []string{"axios"})
@@ -41,6 +51,26 @@ func TestBoundary_EmptyFile(t *testing.T) {
 		t.Fatalf("Go analyzer failed on empty file: %v", err)
 	}
 	if goResults["github.com/gin-gonic/gin"].Used {
+		t.Error("Empty file should not mark dependency as used")
+	}
+
+	// 测试 Python 分析器
+	pyAnalyzer := NewPythonAnalyzer()
+	pyResults, err := pyAnalyzer.Analyze(tmpDir, []string{"requests"})
+	if err != nil {
+		t.Fatalf("Python analyzer failed on empty file: %v", err)
+	}
+	if pyResults["requests"].Used {
+		t.Error("Empty file should not mark dependency as used")
+	}
+
+	// 测试 Rust 分析器
+	rustAnalyzer := NewRustAnalyzer()
+	rustResults, err := rustAnalyzer.Analyze(tmpDir, []string{"serde"})
+	if err != nil {
+		t.Fatalf("Rust analyzer failed on empty file: %v", err)
+	}
+	if rustResults["serde"].Used {
 		t.Error("Empty file should not mark dependency as used")
 	}
 }

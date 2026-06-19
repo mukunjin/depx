@@ -81,6 +81,61 @@ func main() {
 			expectError:    false,
 		},
 		{
+			name: "rust project with mixed usage",
+			setup: func(dir string) error {
+				cargoToml := `[package]
+name = "test-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+unused-crate = "1.0"
+`
+				if err := os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte(cargoToml), 0644); err != nil {
+					return err
+				}
+				rustCode := `use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
+
+fn main() {
+    println!("Hello");
+}
+`
+				return os.WriteFile(filepath.Join(dir, "main.rs"), []byte(rustCode), 0644)
+			},
+			expectedType:   "cargo",
+			expectedTotal:  3,
+			expectedUsed:   2,
+			expectedUnused: 1,
+			expectError:    false,
+		},
+		{
+			name: "python project with mixed usage",
+			setup: func(dir string) error {
+				requirements := `requests>=2.31.0
+flask>=3.0.0
+unused-package>=1.0.0
+`
+				if err := os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte(requirements), 0644); err != nil {
+					return err
+				}
+				pyCode := `import requests
+from flask import Flask
+
+app = Flask(__name__)
+response = requests.get('https://api.example.com')
+`
+				return os.WriteFile(filepath.Join(dir, "app.py"), []byte(pyCode), 0644)
+			},
+			expectedType:   "pip",
+			expectedTotal:  3,
+			expectedUsed:   2,
+			expectedUnused: 1,
+			expectError:    false,
+		},
+		{
 			name:           "empty project",
 			setup:          func(dir string) error { return nil },
 			expectedType:   "",

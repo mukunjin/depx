@@ -1,23 +1,19 @@
 # depx
 
-Dependency Efficiency Analyzer - 依赖效率分析工具
+Dependency Analyzer - Detect unused dependencies in your project and analyze dependency surface area.
 
-Detect unused dependencies in your project, analyze dependency efficiency and surface area.
-
-检测项目中声明但未使用的依赖，分析依赖效率与影响面，帮助开发者识别依赖浪费。
+**中文文档**: [README_zh.md](README_zh.md)
 
 ---
 
-## Features / 功能
+## Features
 
-- **Unused Detection** — Scan project dependency manifest files and detect unused dependencies / 扫描项目依赖声明文件，检测未使用的依赖
-- **Efficiency Analysis** — Analyze which exports of a dependency are actually used, calculate efficiency percentage / 分析依赖的哪些导出被实际使用，计算效率百分比
-- **Surface Area Analysis** — Analyze how widely a dependency is used across the project, assess criticality / 分析依赖在项目中的使用广度，评估关键度
-- **Lock File Analysis** — Parse lock files to get accurate dependency versions and detect indirect dependencies / 解析 Lock File 获取准确的依赖版本并检测间接依赖
-- **Monorepo Support** — Detect and scan npm workspaces, merge results across sub-projects / 检测并扫描 npm workspaces，合并子项目结果
-- **Configuration** — Customize ignore rules, exclude directories via `.depx.yml` / 通过 `.depx.yml` 自定义忽略规则、排除目录
+- **Unused Detection** — Scan project dependency manifest files and detect unused dependencies
+- **Surface Area Analysis** — Analyze how widely a dependency is used across the project, assess criticality
+- **Lock File Analysis** — Parse lock files to get accurate dependency versions and detect indirect dependencies
+- **Configuration** — Customize ignore rules, exclude directories via `.depx.yml`
 
-## Supported / 支持范围
+## Supported
 
 | Package Manager | Manifest | Lock File | Source Files |
 |----------------|----------|-----------|--------------|
@@ -26,65 +22,93 @@ Detect unused dependencies in your project, analyze dependency efficiency and su
 | Rust | Cargo.toml | Cargo.lock | .rs |
 | Python | requirements.txt | — | .py |
 
-## Installation / 安装
+## Installation
 
-### 首次设置（仅需一次）
+### First-time Setup (Windows only)
 
-Windows 默认禁止运行 PowerShell 脚本。首次使用前，请以**管理员身份**运行 PowerShell 并执行：
+Windows blocks PowerShell scripts by default. Run PowerShell as **Administrator** and execute:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-输入 `Y` 确认。此设置永久生效，之后可直接运行 `.ps1` 脚本。
+Type `Y` to confirm. This setting persists.
 
-### 安装 depx
+### Install depx
 
 ```powershell
-# 克隆仓库
+# Clone repository
 git clone https://github.com/mukunjin/depx.git
 cd depx
 
-# 构建
-go build -ldflags="-s -w -X github.com/mukunjin/depx/cmd.Version=v0.2.0" .
+# Build (automatically gets version from Git tag)
+.\build.ps1
 
-# 安装
+# Install
 .\install.ps1
 ```
 
-### 卸载
+### Uninstall
 
 ```powershell
 .\install.ps1 -Uninstall
 ```
 
-脚本会自动完成：
-- 将 `depx.exe` 复制到 `%LOCALAPPDATA%\depx`
-- 添加到用户 PATH
-- 提示重启终端使配置生效
+The script will:
+- Copy `depx.exe` to `%LOCALAPPDATA%\depx`
+- Add to user PATH
+- Prompt to restart terminal
 
-## Usage / 使用方法
+### Version Management
 
-### Scan / 扫描
+The version number is controlled by the following places:
 
-```bash
-# Scan current directory / 扫描当前目录
-depx scan
+| Location | Role | When it takes effect |
+|----------|------|---------------------|
+| Git tag | Primary source | When building via `.\build.ps1` |
+| `cmd/root.go` line 8 | Fallback (`dev`) | When running `go build` directly without `-ldflags` |
+| `build.ps1` | Reads git tag, injects via `-ldflags` | Every time you run `.\build.ps1` |
+| `install.ps1` line 139 | Reads version from binary (`depx --version`) | During installation verification |
 
-# Scan a specific directory / 扫描指定目录
-depx scan C:\path\to\project
+**How it works:**
+1. `build.ps1` runs `git describe --tags --abbrev=0` to get the latest Git tag
+2. The tag is injected into the binary via `-ldflags="-X github.com/mukunjin/depx/cmd.Version=<tag>"`
+3. `cmd/root.go` provides a fallback value (`dev`) when no `-ldflags` is used
+4. `install.ps1` verifies the installed binary by reading its version
 
-# Scan with custom config / 使用自定义配置扫描
-depx scan --config C:\path\to\.depx.yml
+**How to release a new version:**
+1. Create a Git tag: `git tag v0.3.0`
+2. Push the tag: `git push origin v0.3.0`
+3. Run `.\build.ps1` to build with the new version
+4. Run `.\install.ps1` to install
 
-# Show help / 显示帮助
-depx --help
-
-# Show version / 显示版本
+**Verify current version:**
+```powershell
 depx --version
 ```
 
-Example output / 输出示例：
+## Usage
+
+### Scan
+
+```bash
+# Scan current directory
+depx scan
+
+# Scan a specific directory
+depx scan C:\path\to\project
+
+# Scan with custom config
+depx scan --config C:\path\to\.depx.yml
+
+# Show help
+depx --help
+
+# Show version
+depx --version
+```
+
+Example output:
 
 ```
   Project Summary
@@ -102,36 +126,14 @@ Example output / 输出示例：
   [x] typescript
 ```
 
-### Efficiency Analysis / 效率分析
+### Surface Area Analysis
 
 ```bash
-# Analyze dependency efficiency / 分析依赖效率
-depx efficiency
-
-# Analyze specific dependency / 分析特定依赖
-depx efficiency lodash
-```
-
-Example output / 输出示例：
-
-```
-  Dependency Efficiency
---------------------------
-  Package: lodash
-  Functions Used: 1 (debounce)
-  Estimated Exports: 30
-  Efficiency: 3.3%
-  Recommendation: Consider native implementation
-```
-
-### Surface Area Analysis / 影响面分析
-
-```bash
-# Analyze dependency surface area / 分析依赖影响面
+# Analyze dependency surface area
 depx surface
 ```
 
-Example output / 输出示例：
+Example output:
 
 ```
   Dependency Surface Area
@@ -149,97 +151,74 @@ Example output / 输出示例：
     Criticality: Low
 ```
 
-### Monorepo Support / Monorepo 支持
-
-```bash
-# Scan monorepo workspaces / 扫描 monorepo 工作区
-depx monorepo
-```
-
-Example output / 输出示例：
-
-```
-  Monorepo Summary
---------------------------
-  Workspaces: 5
-  Total Dependencies: 234
-  Used: 189
-  Unused: 45
-```
-
-## Architecture / 架构
+## Architecture
 
 ```
 depx
-├── cmd/                          # CLI entry / CLI 入口
-│   ├── efficiency.go            # Efficiency analysis command / 效率分析命令
-│   ├── monorepo.go              # Monorepo support command / Monorepo 支持命令
-│   ├── root.go                  # Root command / 根命令
-│   ├── scan.go                  # Scan subcommand / scan 子命令
-│   └── surface.go               # Surface area analysis command / 影响面分析命令
+├── cmd/
+│   ├── root.go                  # Root command
+│   ├── root_test.go
+│   ├── scan.go                  # Scan subcommand
+│   ├── scan_test.go
+│   ├── surface.go               # Surface area analysis command
+│   └── surface_test.go
 ├── internal/
-│   ├── analyzer/                # Analyzer - orchestrates scanning / 分析器 - 协调扫描流程
-│   │   ├── monorepo.go          # Monorepo detection / Monorepo 检测
-│   │   ├── monorepo_test.go     # Monorepo tests / Monorepo 测试
-│   │   ├── unused.go            # Core scanning logic / 核心扫描逻辑
-│   │   └── unused_test.go       # Analyzer tests / 分析器测试
-│   ├── config/                  # Configuration / 配置管理
-│   │   ├── config.go            # .depx.yml parsing / 配置文件解析
-│   │   └── config_test.go       # Config tests / 配置测试
-│   ├── efficiency/              # Efficiency analysis / 效率分析
-│   │   ├── efficiency.go        # Core logic / 核心逻辑
-│   │   ├── efficiency_test.go   # Efficiency tests / 效率测试
-│   │   ├── go_export.go         # Go export extraction / Go 导出提取
-│   │   └── js_export.go         # JS/TS export extraction / JS/TS 导出提取
-│   ├── lockfile/                # Lock file parsing / Lock File 解析
-│   │   ├── lockfile.go          # Unified interface / 统一接口
-│   │   └── lockfile_test.go     # Lockfile tests / Lockfile 测试
-│   ├── manifest/                # Manifest parsing / 清单解析
-│   │   ├── cargo.go             # Cargo.toml parser / Cargo.toml 解析
-│   │   ├── cargo_test.go        # Cargo tests / Cargo 测试
-│   │   ├── gomod.go             # go.mod parser / go.mod 解析
-│   │   ├── manifest.go          # Manifest interface / 清单接口
-│   │   ├── manifest_test.go     # Manifest tests / 清单测试
-│   │   ├── npm.go               # package.json parser / package.json 解析
-│   │   ├── pip.go               # requirements.txt parser / requirements.txt 解析
-│   │   └── pip_test.go          # Pip tests / Pip 测试
-│   ├── report/                  # Report generation / 报告生成
-│   │   └── terminal.go          # Terminal output / 终端输出
-│   ├── surface/                 # Surface area analysis / 影响面分析
-│   │   ├── surface.go           # Core logic / 核心逻辑
-│   │   └── surface_test.go      # Surface tests / 影响面测试
-│   └── usage/                   # Usage analysis / 使用分析
-│       ├── boundary_test.go     # Boundary condition tests / 边界条件测试
-│       ├── golang.go            # Go import analysis / Go import 分析
-│       ├── golang_test.go       # Go analyzer tests / Go 分析器测试
-│       ├── js.go                # JS/TS import analysis / JS/TS import 分析
-│       ├── js_test.go           # JS analyzer tests / JS 分析器测试
-│       ├── python.go            # Python import analysis / Python import 分析
-│       ├── python_test.go       # Python analyzer tests / Python 分析器测试
-│       ├── rust.go              # Rust use analysis / Rust use 分析
-│       ├── rust_test.go         # Rust analyzer tests / Rust 分析器测试
-│       └── usage.go             # Analyzer interface / 分析器接口
-├── tests/                       # Integration tests / 集成测试
-│   └── integration_test.go      # End-to-end tests / 端到端测试
-├── testdata/                    # Test fixtures / 测试夹具数据
-│   ├── edge-all-used/           # Edge: all used / 边界：全部使用
+│   ├── analyzer/
+│   │   ├── unused.go            # Core scanning logic
+│   │   └── unused_test.go
+│   ├── config/
+│   │   ├── config.go            # .depx.yml parsing
+│   │   └── config_test.go
+│   ├── lockfile/
+│   │   ├── lockfile.go          # Unified interface
+│   │   └── lockfile_test.go
+│   ├── manifest/
+│   │   ├── cargo.go             # Cargo.toml parser
+│   │   ├── cargo_test.go
+│   │   ├── gomod.go             # go.mod parser
+│   │   ├── manifest.go          # Manifest interface
+│   │   ├── manifest_test.go
+│   │   ├── npm.go               # package.json parser
+│   │   ├── pip.go               # requirements.txt parser
+│   │   └── pip_test.go
+│   ├── report/
+│   │   ├── terminal.go          # Terminal output
+│   │   └── terminal_test.go
+│   ├── surface/
+│   │   ├── surface.go           # Core logic
+│   │   └── surface_test.go
+│   └── usage/
+│       ├── boundary_test.go     # Boundary condition tests
+│       ├── golang.go            # Go import analysis
+│       ├── golang_test.go
+│       ├── js.go                # JS/TS import analysis
+│       ├── js_test.go
+│       ├── python.go            # Python import analysis
+│       ├── python_test.go
+│       ├── rust.go              # Rust use analysis
+│       ├── rust_test.go
+│       └── usage.go             # Analyzer interface
+├── tests/
+│   └── integration_test.go      # End-to-end tests
+├── testdata/
+│   ├── edge-all-used/
 │   │   ├── index.js
 │   │   └── package.json
-│   ├── edge-no-source/          # Edge: no source files / 边界：无源码
+│   ├── edge-no-source/
 │   │   └── package.json
-│   ├── edge-none-used/          # Edge: none used / 边界：全部未使用
+│   ├── edge-none-used/
 │   │   ├── index.js
 │   │   └── package.json
-│   ├── go-complex/              # Go complex project / Go 复杂项目
+│   ├── go-complex/
 │   │   ├── handlers/
 │   │   │   ├── handlers.go
 │   │   │   └── handlers_test.go
 │   │   ├── go.mod
 │   │   └── main.go
-│   ├── go-project/              # Go basic project / Go 基础项目
+│   ├── go-project/
 │   │   ├── go.mod
 │   │   └── main.go
-│   ├── npm-complex/             # npm complex project / npm 复杂项目
+│   ├── npm-complex/
 │   │   ├── src/
 │   │   │   ├── __tests__/
 │   │   │   │   └── index.test.ts
@@ -248,13 +227,18 @@ depx
 │   │   │   ├── Component.vue
 │   │   │   └── index.ts
 │   │   └── package.json
-│   ├── npm-project/             # npm basic project / npm 基础项目
+│   ├── npm-project/
 │   │   ├── index.js
 │   │   └── package.json
-│   ├── python-project/          # Python project / Python 项目
+│   ├── python-complex/
+│   │   ├── app.py
+│   │   ├── database.py
+│   │   ├── models.py
+│   │   └── requirements.txt
+│   ├── python-project/
 │   │   ├── main.py
 │   │   └── requirements.txt
-│   ├── real-npm/                # npm real-world simulation / npm 真实场景模拟
+│   ├── real-npm/
 │   │   ├── src/
 │   │   │   ├── utils/
 │   │   │   │   ├── api.js
@@ -262,74 +246,80 @@ depx
 │   │   │   ├── index.js
 │   │   │   └── server.js
 │   │   └── package.json
-│   └── rust-project/            # Rust project / Rust 项目
+│   ├── rust-complex/
+│   │   ├── src/
+│   │   │   ├── handlers.rs
+│   │   │   └── main.rs
+│   │   └── Cargo.toml
+│   └── rust-project/
 │       ├── Cargo.toml
 │       └── main.rs
-├── .gitignore                   # Git ignore rules / Git 忽略规则
-├── install.ps1                  # Windows install script / Windows 安装脚本
-├── LICENSE                      # License file / 许可证文件
-├── main.go                      # Entry point / 入口文件
-├── README.md                    # Documentation / 文档
-├── go.mod                       # Go module definition / Go 模块定义
-└── go.sum                       # Go dependencies checksum / Go 依赖校验和
+├── .gitignore
+├── build.ps1                    # Build script (auto version from Git tag)
+├── install.ps1                  # Windows install script
+├── LICENSE
+├── main.go                      # Entry point
+├── README.md                    # Documentation (English)
+├── README_zh.md                 # Documentation (Chinese)
+├── go.mod                       # Go module definition
+└── go.sum                       # Go dependencies checksum
 ```
 
-## Configuration / 配置
+## Configuration
 
-Create `.depx.yml` in your project root / 在项目根目录创建 `.depx.yml`：
+Create `.depx.yml` in your project root:
 
 ```yaml
-# Ignore specific dependencies / 忽略特定依赖
+# Ignore specific dependencies
 ignore:
   - "@types/node"
   - "typescript"
 
-# Exclude directories / 排除目录
+# Exclude directories
 exclude_dirs:
   - "vendor"
   - "dist"
   - "node_modules"
 
-# Exclude file patterns / 排除文件模式
+# Exclude file patterns
 exclude_files:
   - "*.test.js"
   - "*.spec.ts"
 
-# Read node_modules for precise analysis / 读取 node_modules 进行精确分析
+# Read node_modules for precise analysis
 read_node_modules: false
 
-# Enable lock file analysis / 启用 Lock File 分析
+# Enable lock file analysis
 lock_file: true
 ```
 
-## Technical Details / 技术实现
+## Technical Details
 
-- **Language / 语言**: Go
-- **CLI Framework / CLI 框架**: cobra
-- **Colored Output / 输出着色**: fatih/color
-- **YAML Parsing / YAML 解析**: gopkg.in/yaml.v3
-- **Dependency Detection / 依赖检测**: Regex matching + state machine comment filtering / 正则匹配 + 状态机注释过滤
+- **Language**: Go
+- **CLI Framework**: cobra
+- **Colored Output**: fatih/color
+- **YAML Parsing**: gopkg.in/yaml.v3
+- **Dependency Detection**: Regex matching + state machine comment filtering
 
-Core flow / 核心流程：
+Core flow:
 
-1. Detect project type (npm/go/cargo/pip) / 检测项目类型
-2. Parse manifest file to get dependency list / 解析清单文件获取依赖列表
-3. Parse lock file if available / 解析 Lock File（如果可用）
-4. Load configuration from `.depx.yml` / 从 `.depx.yml` 加载配置
-5. Walk source files to extract import statements / 遍历源码文件提取 import 语句
-6. Filter comments and string literals / 过滤注释和字符串字面量
-7. Match dependency declarations with actual usage / 匹配依赖声明与实际使用
-8. Analyze efficiency and surface area / 分析效率和影响面
-9. Generate report / 生成报告
+1. Detect project type (npm/go/cargo/pip)
+2. Parse manifest file to get dependency list
+3. Parse lock file if available
+4. Load configuration from `.depx.yml`
+5. Walk source files to extract import statements
+6. Filter comments and string literals
+7. Match dependency declarations with actual usage
+8. Analyze surface area
+9. Generate report
 
-## Limitations / 限制
+## Limitations
 
-- Only detects direct dependencies, does not analyze transitive dependencies / 仅检测直接依赖，不分析传递依赖
-- In npm projects, `@types/*` packages always show as unused (auto-loaded by TypeScript compiler) / npm 项目中 `@types/*` 包始终显示为未使用
-- In Go projects, dependencies marked `// indirect` are automatically excluded / Go 项目中自动排除 `// indirect` 标记的间接依赖
-- Python package names may not match import names (e.g., `pip install Pillow` → `import PIL`) / Python 包名可能与 import 名不一致
-- Monorepo support is limited to npm workspaces / Monorepo 支持仅限于 npm workspaces
+- Only detects direct dependencies, does not analyze transitive dependencies
+- In npm projects, `@types/*` packages always show as unused (auto-loaded by TypeScript compiler)
+- In Go projects, dependencies marked `// indirect` are automatically excluded
+- Python package names may not match import names (e.g., `pip install Pillow` → `import PIL`)
 
-## License / 许可证
+## License
 
 GPLv3 - See [LICENSE](LICENSE) for details.

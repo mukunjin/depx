@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/mukunjin/depx/internal/analyzer"
 	"github.com/mukunjin/depx/internal/config"
@@ -17,37 +16,40 @@ var scanCmd = &cobra.Command{
 	Short: "扫描项目，检测未使用的依赖",
 	Long:  `扫描指定目录下的项目，分析依赖使用情况，找出未使用的依赖。`,
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		path := "."
 		if len(args) > 0 {
 			path = args[0]
 		}
 
-		var cfg *config.Config
-		var err error
-
-		if configPath != "" {
-			cfg, err = config.Load(configPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-				os.Exit(1)
-			}
-		} else {
-			cfg, err = config.FindAndLoad(path)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not load config: %v\n", err)
-				cfg = config.DefaultConfig()
-			}
-		}
-
-		result, err := analyzer.ScanWithConfig(path, cfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-
-		report.PrintTerminal(result)
+		return runScan(path, configPath)
 	},
+}
+
+func runScan(path, configPath string) error {
+	var cfg *config.Config
+	var err error
+
+	if configPath != "" {
+		cfg, err = config.Load(configPath)
+		if err != nil {
+			return fmt.Errorf("loading config: %w", err)
+		}
+	} else {
+		cfg, err = config.FindAndLoad(path)
+		if err != nil {
+			fmt.Printf("Warning: could not load config: %v\n", err)
+			cfg = config.DefaultConfig()
+		}
+	}
+
+	result, err := analyzer.ScanWithConfig(path, cfg)
+	if err != nil {
+		return err
+	}
+
+	report.PrintTerminal(result)
+	return nil
 }
 
 func init() {
