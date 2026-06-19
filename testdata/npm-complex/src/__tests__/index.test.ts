@@ -1,8 +1,9 @@
-// 测试文件 - 应该扫描到 jest
-import { describe, it, expect } from 'jest';
+// 测试文件 - 验证测试文件不会被扫描
+import { something } from 'unused-in-test';
+import axios from 'axios';
 
 describe('test', () => {
-  it('works', () => {
+  it('should work', () => {
     expect(true).toBe(true);
   });
 });

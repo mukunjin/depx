@@ -7,6 +7,7 @@ import (
 )
 
 func TestGoAnalyzer(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	goCode := `package main
@@ -31,7 +32,7 @@ func main() {
 	analyzer := NewGoAnalyzer()
 	deps := []string{"github.com/gin-gonic/gin", "github.com/spf13/cobra"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -44,6 +45,7 @@ func main() {
 }
 
 func TestGoAnalyzerSubpath(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	goCode := `package main
@@ -64,7 +66,7 @@ func main() {
 	analyzer := NewGoAnalyzer()
 	deps := []string{"github.com/go-redis/redis/v8"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -75,6 +77,7 @@ func main() {
 }
 
 func TestGoAnalyzerSkipDirs(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	vendorDir := filepath.Join(tmpDir, "vendor", "github.com", "unused")
@@ -93,7 +96,7 @@ import "github.com/some/pkg"
 	analyzer := NewGoAnalyzer()
 	deps := []string{"github.com/some/pkg"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -104,6 +107,7 @@ import "github.com/some/pkg"
 }
 
 func TestGoAnalyzerMultiFile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	mainGo := `package main
@@ -137,7 +141,7 @@ func Run() {
 	analyzer := NewGoAnalyzer()
 	deps := []string{"github.com/gin-gonic/gin", "github.com/spf13/cobra", "github.com/unused/pkg"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -162,6 +166,7 @@ func Run() {
 }
 
 func TestGoAnalyzerTestFiles(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	mainGo := `package main
@@ -193,7 +198,7 @@ func TestSomething(t *testing.T) {
 	analyzer := NewGoAnalyzer()
 	deps := []string{"github.com/gin-gonic/gin", "github.com/stretchr/testify"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -207,14 +212,16 @@ func TestSomething(t *testing.T) {
 }
 
 func TestGoAnalyzerNonExistentDir(t *testing.T) {
+	t.Parallel()
 	analyzer := NewGoAnalyzer()
-	_, err := analyzer.Analyze("/non/existent/dir", []string{"fmt"})
+	_, err := analyzer.Analyze("/non/existent/dir", []string{"fmt"}, nil)
 	if err == nil {
 		t.Error("Should return error for non-existent directory")
 	}
 }
 
 func TestGoAnalyzerEmptyDeps(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	goCode := `package main
@@ -226,7 +233,7 @@ func main() { fmt.Println("hi") }
 	}
 
 	analyzer := NewGoAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{})
+	results, err := analyzer.Analyze(tmpDir, []string{}, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -236,6 +243,7 @@ func main() { fmt.Println("hi") }
 }
 
 func TestExtractGoImports(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string
@@ -433,6 +441,7 @@ import (
 }
 
 func TestParseGoImportLine(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -463,6 +472,7 @@ func TestParseGoImportLine(t *testing.T) {
 }
 
 func TestRemoveGoLineComment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string

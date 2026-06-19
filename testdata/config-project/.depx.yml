@@ -1,0 +1,7 @@
+ignore:
+  - moment
+  - typescript
+exclude_dirs:
+  - node_modules
+  - dist
+lock_file: false

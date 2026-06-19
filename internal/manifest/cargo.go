@@ -60,8 +60,8 @@ func (m *CargoManifest) parse() error {
 			continue
 		}
 
-		// 检测 [dependencies] 段
-		if line == "[dependencies]" {
+		// 检测 [dependencies]、[dev-dependencies]、[build-dependencies] 段
+		if line == "[dependencies]" || line == "[dev-dependencies]" || line == "[build-dependencies]" {
 			inDeps = true
 			continue
 		}
@@ -72,7 +72,7 @@ func (m *CargoManifest) parse() error {
 			continue
 		}
 
-		// 在 [dependencies] 段内提取依赖
+		// 在依赖段内提取依赖
 		if inDeps {
 			// 解析依赖行：name = "version" 或 name = { version = "x", ... }
 			if idx := strings.Index(line, "="); idx > 0 {

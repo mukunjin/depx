@@ -41,7 +41,7 @@ var (
 )
 
 // Analyze 扫描目录下所有 Python 源文件，返回每个依赖的使用情况
-func (p *PythonAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.UsageResult, error) {
+func (p *PythonAnalyzer) Analyze(dir string, deps []string, opts *Options) (map[string]*manifest.UsageResult, error) {
 	// 检查目录是否存在
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return nil, err
@@ -64,19 +64,36 @@ func (p *PythonAnalyzer) Analyze(dir string, deps []string) (map[string]*manifes
 		fileTrackers[dep] = make(map[string]bool)
 	}
 
+	// 构建跳过目录集合
+	skipDirs := make(map[string]bool)
+	for k, v := range pythonSkipDirs {
+		skipDirs[k] = v
+	}
+	// 添加自定义排除目录
+	if opts != nil {
+		for _, d := range opts.ExcludeDirs {
+			skipDirs[d] = true
+		}
+	}
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // 跳过无法访问的文件
+			return err // 返回错误而不是静默跳过
 		}
 		if info.IsDir() {
-			if pythonSkipDirs[info.Name()] {
+			if skipDirs[info.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		ext := filepath.Ext(info.Name())
+		ext := strings.ToLower(filepath.Ext(info.Name()))
 		if !pythonExtensions[ext] {
+			return nil
+		}
+
+		// 检查文件模式排除
+		if opts != nil && shouldExcludeFile(path, opts.ExcludeFiles) {
 			return nil
 		}
 
@@ -148,8 +165,33 @@ func removePythonComments(content string) string {
 	for i < n {
 		c := content[i]
 
-		// 处理字符串字面量
+		// 处理三引号字符串 (""" 或 ''')
+		if (c == '"' || c == '\'') && i+2 < n && content[i+1] == c && content[i+2] == c {
+			// 跳过三引号
+			i += 3
+			// 找到结束的三引号
+			for i+2 < n {
+				if content[i] == '\\' && i+1 < n {
+					i += 2
+					continue
+				}
+				if content[i] == c && content[i+1] == c && content[i+2] == c {
+					i += 3
+					break
+				}
+				i++
+			}
+			// 如果没找到结束，跳过剩余内容
+			if i >= n {
+				break
+			}
+			result.WriteString(" None ") // 用占位符替换字符串
+			continue
+		}
+
+		// 处理单引号字符串字面量
 		if c == '"' || c == '\'' {
+			quote := c
 			result.WriteByte(c)
 			i++
 			for i < n {
@@ -160,7 +202,7 @@ func removePythonComments(content string) string {
 					continue
 				}
 				result.WriteByte(content[i])
-				if content[i] == c {
+				if content[i] == quote {
 					i++
 					break
 				}

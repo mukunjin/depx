@@ -41,11 +41,11 @@ mockall = "0.11"
 		t.Fatalf("Dependencies failed: %v", err)
 	}
 
-	if len(deps) != 3 {
-		t.Errorf("Expected 3 dependencies, got %d: %v", len(deps), deps)
+	if len(deps) != 4 {
+		t.Errorf("Expected 4 dependencies, got %d: %v", len(deps), deps)
 	}
 
-	expected := map[string]bool{"serde": true, "tokio": true, "reqwest": true}
+	expected := map[string]bool{"serde": true, "tokio": true, "reqwest": true, "mockall": true}
 	for _, dep := range deps {
 		if !expected[dep] {
 			t.Errorf("Unexpected dependency: %s", dep)

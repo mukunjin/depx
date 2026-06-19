@@ -139,9 +139,9 @@ github.com/stretchr/testify v1.8.4/go.mod h1:jkl012=
 		t.Fatalf("Dependencies failed: %v", err)
 	}
 
-	// go.sum 中每个包有 h1: 和 go.mod 两行，应该去重后返回 4 个
-	if len(deps) != 4 {
-		t.Errorf("Expected 4 deps, got %d", len(deps))
+	// go.sum 中每个包有 h1: 和 go.mod 两行，去重后返回 2 个
+	if len(deps) != 2 {
+		t.Errorf("Expected 2 deps, got %d", len(deps))
 	}
 
 	found := toMap(deps)

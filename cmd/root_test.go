@@ -48,3 +48,37 @@ func TestScanCommandFlags(t *testing.T) {
 		t.Errorf("expected shorthand 'c', got %q", flag.Shorthand)
 	}
 }
+
+func TestSurfaceCommandFlags(t *testing.T) {
+	flag := surfaceCmd.Flags().Lookup("config")
+	if flag == nil {
+		t.Error("surface command should have --config flag")
+	}
+	if flag.Shorthand != "c" {
+		t.Errorf("expected shorthand 'c', got %q", flag.Shorthand)
+	}
+}
+
+func TestRootCommandUseAndShort(t *testing.T) {
+	if rootCmd.Use != "depx" {
+		t.Errorf("expected Use 'depx', got %q", rootCmd.Use)
+	}
+	// 验证 Short 描述不为空
+	if rootCmd.Short == "" {
+		t.Error("root command Short description should not be empty")
+	}
+	// 验证 Long 描述不为空
+	if rootCmd.Long == "" {
+		t.Error("root command Long description should not be empty")
+	}
+}
+
+func TestExecute(t *testing.T) {
+	// 测试 Execute 函数不返回错误（在没有参数时）
+	// 为避免测试框架传入的测试标志污染命令参数，使用 SetArgs 隔离参数
+	rootCmd.SetArgs([]string{})
+	err := Execute()
+	if err != nil {
+		t.Errorf("Execute() should not return error, got: %v", err)
+	}
+}

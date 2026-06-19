@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/mukunjin/depx/internal/analyzer"
 	"github.com/mukunjin/depx/internal/config"
@@ -27,6 +28,11 @@ var scanCmd = &cobra.Command{
 }
 
 func runScan(path, configPath string) error {
+	// 验证路径是否存在
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("path does not exist: %s", path)
+	}
+
 	var cfg *config.Config
 	var err error
 
@@ -38,8 +44,7 @@ func runScan(path, configPath string) error {
 	} else {
 		cfg, err = config.FindAndLoad(path)
 		if err != nil {
-			fmt.Printf("Warning: could not load config: %v\n", err)
-			cfg = config.DefaultConfig()
+			return fmt.Errorf("loading config: %w", err)
 		}
 	}
 

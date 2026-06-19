@@ -35,6 +35,11 @@ func PrintTerminal(result *analyzer.ScanResult) {
 		green.Printf("  %-16s %d\n", "Unused:", result.UnusedDeps)
 	}
 
+	// 显示间接依赖数量
+	if len(result.IndirectDeps) > 0 {
+		cyan.Printf("  %-16s %d\n", "Indirect:", len(result.IndirectDeps))
+	}
+
 	// 未使用依赖列表
 	if result.UnusedDeps > 0 {
 		yellow.Println("\n  Unused Dependencies")
@@ -54,6 +59,21 @@ func PrintTerminal(result *analyzer.ScanResult) {
 		}
 	} else {
 		green.Println("\n  [OK] All dependencies are used!")
+	}
+
+	// 间接依赖列表
+	if len(result.IndirectDeps) > 0 {
+		cyan.Println("\n  Indirect Dependencies")
+		cyan.Println("--------------------------")
+
+		// 排序间接依赖
+		indirectSorted := make([]string, len(result.IndirectDeps))
+		copy(indirectSorted, result.IndirectDeps)
+		sort.Strings(indirectSorted)
+
+		for _, pkg := range indirectSorted {
+			fmt.Printf("  [i] %s\n", pkg)
+		}
 	}
 
 	fmt.Println()

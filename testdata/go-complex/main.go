@@ -11,20 +11,20 @@ import (
 
 func main() {
 	r := gin.Default()
-	
+
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
-	
+
 	// 使用 redis
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
 	_ = rdb
-	
+
 	// 使用 text
 	tag := language.English
 	fmt.Println(tag)
-	
+
 	r.Run(":8080")
 }

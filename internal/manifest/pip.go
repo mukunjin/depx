@@ -59,12 +59,12 @@ func (m *PipManifest) parse() error {
 			continue
 		}
 
-		// 跳过 -r 和 -e 选项
-		if strings.HasPrefix(line, "-r") || strings.HasPrefix(line, "-e") {
+		// 跳过所有以 - 开头的选项行（-r, -e, --index-url, --extra-index-url 等）
+		if strings.HasPrefix(line, "-") {
 			continue
 		}
 
-		// 提取包名（去除版本约束）
+		// 提取包名（去除版本约束和 extras）
 		pkgName := extractPipPackageName(line)
 		if pkgName != "" {
 			m.deps = append(m.deps, pkgName)
@@ -76,7 +76,13 @@ func (m *PipManifest) parse() error {
 
 // extractPipPackageName 从依赖行中提取包名
 // 例如: "requests==2.28.0" -> "requests", "numpy>=1.21" -> "numpy"
+// 例如: "requests[security]==2.28.0" -> "requests"
 func extractPipPackageName(line string) string {
+	// 先处理 extras 语法，如 requests[security]
+	if idx := strings.Index(line, "["); idx > 0 {
+		line = line[:idx]
+	}
+
 	// 查找版本约束符号
 	for _, sep := range []string{"==", ">=", "<=", "~=", "!=", ">", "<"} {
 		if idx := strings.Index(line, sep); idx > 0 {

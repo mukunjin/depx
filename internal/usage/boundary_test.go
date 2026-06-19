@@ -12,6 +12,7 @@ import (
 
 // TestBoundary_EmptyFile 测试空文件处理
 func TestBoundary_EmptyFile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建空的 JS 文件
@@ -36,7 +37,7 @@ func TestBoundary_EmptyFile(t *testing.T) {
 
 	// 测试 JS 分析器
 	jsAnalyzer := NewJSAnalyzer()
-	jsResults, err := jsAnalyzer.Analyze(tmpDir, []string{"axios"})
+	jsResults, err := jsAnalyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatalf("JS analyzer failed on empty file: %v", err)
 	}
@@ -46,7 +47,7 @@ func TestBoundary_EmptyFile(t *testing.T) {
 
 	// 测试 Go 分析器
 	goAnalyzer := NewGoAnalyzer()
-	goResults, err := goAnalyzer.Analyze(tmpDir, []string{"github.com/gin-gonic/gin"})
+	goResults, err := goAnalyzer.Analyze(tmpDir, []string{"github.com/gin-gonic/gin"}, nil)
 	if err != nil {
 		t.Fatalf("Go analyzer failed on empty file: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestBoundary_EmptyFile(t *testing.T) {
 
 	// 测试 Python 分析器
 	pyAnalyzer := NewPythonAnalyzer()
-	pyResults, err := pyAnalyzer.Analyze(tmpDir, []string{"requests"})
+	pyResults, err := pyAnalyzer.Analyze(tmpDir, []string{"requests"}, nil)
 	if err != nil {
 		t.Fatalf("Python analyzer failed on empty file: %v", err)
 	}
@@ -66,7 +67,7 @@ func TestBoundary_EmptyFile(t *testing.T) {
 
 	// 测试 Rust 分析器
 	rustAnalyzer := NewRustAnalyzer()
-	rustResults, err := rustAnalyzer.Analyze(tmpDir, []string{"serde"})
+	rustResults, err := rustAnalyzer.Analyze(tmpDir, []string{"serde"}, nil)
 	if err != nil {
 		t.Fatalf("Rust analyzer failed on empty file: %v", err)
 	}
@@ -77,6 +78,7 @@ func TestBoundary_EmptyFile(t *testing.T) {
 
 // TestBoundary_LargeFile 测试大文件处理
 func TestBoundary_LargeFile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建一个约 1MB 的文件
@@ -93,7 +95,7 @@ func TestBoundary_LargeFile(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios", "lodash"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios", "lodash"}, nil)
 	if err != nil {
 		t.Fatalf("Failed to analyze large file: %v", err)
 	}
@@ -108,6 +110,7 @@ func TestBoundary_LargeFile(t *testing.T) {
 
 // TestBoundary_Symlinks 测试符号链接处理
 func TestBoundary_Symlinks(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("Symlink test skipped on Windows")
 	}
@@ -132,7 +135,7 @@ func TestBoundary_Symlinks(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatalf("Failed to analyze with symlinks: %v", err)
 	}
@@ -145,6 +148,7 @@ func TestBoundary_Symlinks(t *testing.T) {
 
 // TestBoundary_SpecialCharacters 测试特殊字符路径
 func TestBoundary_SpecialCharacters(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建包含特殊字符的目录
@@ -159,7 +163,7 @@ func TestBoundary_SpecialCharacters(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatalf("Failed with special characters in path: %v", err)
 	}
@@ -171,8 +175,9 @@ func TestBoundary_SpecialCharacters(t *testing.T) {
 
 // TestBoundary_NonExistentDirectory 测试不存在的目录
 func TestBoundary_NonExistentDirectory(t *testing.T) {
+	t.Parallel()
 	analyzer := NewJSAnalyzer()
-	_, err := analyzer.Analyze("/non/existent/directory", []string{"axios"})
+	_, err := analyzer.Analyze("/non/existent/directory", []string{"axios"}, nil)
 	if err == nil {
 		t.Error("Should return error for non-existent directory")
 	}
@@ -180,6 +185,7 @@ func TestBoundary_NonExistentDirectory(t *testing.T) {
 
 // TestBoundary_UnreadableFile 测试不可读文件
 func TestBoundary_UnreadableFile(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("Permission test skipped on Windows")
 	}
@@ -199,7 +205,7 @@ func TestBoundary_UnreadableFile(t *testing.T) {
 	defer os.Chmod(filePath, 0644) // 恢复权限以便清理
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatalf("Should not fail on unreadable files: %v", err)
 	}
@@ -212,6 +218,7 @@ func TestBoundary_UnreadableFile(t *testing.T) {
 
 // TestBoundary_MultipleExtensions 测试多扩展名文件
 func TestBoundary_MultipleExtensions(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建各种扩展名的文件
@@ -230,7 +237,7 @@ func TestBoundary_MultipleExtensions(t *testing.T) {
 
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios", "lodash", "react"}
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Failed to analyze multiple extensions: %v", err)
 	}
@@ -244,6 +251,7 @@ func TestBoundary_MultipleExtensions(t *testing.T) {
 
 // TestBoundary_DuplicateImports 测试重复导入
 func TestBoundary_DuplicateImports(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 同一文件中多次导入同一包
@@ -257,7 +265,7 @@ const { get } = require('axios');
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,6 +287,7 @@ const { get } = require('axios');
 
 // TestBoundary_NestedDirectories 测试深层嵌套目录
 func TestBoundary_NestedDirectories(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建 10 层深的目录
@@ -296,7 +305,7 @@ func TestBoundary_NestedDirectories(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,6 +317,7 @@ func TestBoundary_NestedDirectories(t *testing.T) {
 
 // TestBoundary_MixedLineEndings 测试混合换行符
 func TestBoundary_MixedLineEndings(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 混合使用 \n 和 \r\n
@@ -318,7 +328,7 @@ func TestBoundary_MixedLineEndings(t *testing.T) {
 
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios", "lodash", "react"}
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,6 +342,7 @@ func TestBoundary_MixedLineEndings(t *testing.T) {
 
 // TestBoundary_EmptyDependencies 测试空依赖列表
 func TestBoundary_EmptyDependencies(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := "import axios from 'axios';\n"
@@ -340,7 +351,7 @@ func TestBoundary_EmptyDependencies(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{})
+	results, err := analyzer.Analyze(tmpDir, []string{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,6 +363,7 @@ func TestBoundary_EmptyDependencies(t *testing.T) {
 
 // TestBoundary_CommentsInImports 测试注释中的导入语句
 func TestBoundary_CommentsInImports(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := `
@@ -368,7 +380,7 @@ import('dynamic');
 
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios", "lodash", "react", "dynamic"}
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,6 +401,7 @@ import('dynamic');
 
 // TestBoundary_UnicodeContent 测试 Unicode 内容
 func TestBoundary_UnicodeContent(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 包含中文注释和变量名
@@ -402,7 +415,7 @@ const 数据 = axios.get('/api');
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,6 +427,7 @@ const 数据 = axios.get('/api');
 
 // TestUsageResult_Fields 测试 UsageResult 字段完整性
 func TestUsageResult_Fields(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := "import axios from 'axios';\n"
@@ -422,7 +436,7 @@ func TestUsageResult_Fields(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios", "unused"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios", "unused"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,6 +477,7 @@ func TestUsageResult_Fields(t *testing.T) {
 
 // TestManifest_UsageResult_Integration 测试 manifest 和 usage 的集成
 func TestManifest_UsageResult_Integration(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建 package.json
@@ -496,7 +511,7 @@ func TestManifest_UsageResult_Integration(t *testing.T) {
 
 	// 测试 usage
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

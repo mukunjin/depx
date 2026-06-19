@@ -9,6 +9,7 @@ import (
 )
 
 func TestJSAnalyzer(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := `
@@ -30,7 +31,7 @@ import '@org/pkg/sub';
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios", "lodash", "moment", "dynamic", "bar", "react", "@org/pkg"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -48,6 +49,7 @@ import '@org/pkg/sub';
 }
 
 func TestJSAnalyzerSubpath(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := `
@@ -62,7 +64,7 @@ import axios from 'axios/lib/adapters/http';
 	analyzer := NewJSAnalyzer()
 	deps := []string{"lodash", "axios"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -76,6 +78,7 @@ import axios from 'axios/lib/adapters/http';
 }
 
 func TestJSAnalyzerSkipDirs(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	nodeModules := filepath.Join(tmpDir, "node_modules")
@@ -91,7 +94,7 @@ func TestJSAnalyzerSkipDirs(t *testing.T) {
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -102,6 +105,7 @@ func TestJSAnalyzerSkipDirs(t *testing.T) {
 }
 
 func TestJSAnalyzerSkipAllDirs(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	skipDirs := []string{"node_modules", "dist", "build", ".git", ".next", "coverage", ".nuxt"}
@@ -119,7 +123,7 @@ func TestJSAnalyzerSkipAllDirs(t *testing.T) {
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios"}
 
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -130,6 +134,7 @@ func TestJSAnalyzerSkipAllDirs(t *testing.T) {
 }
 
 func TestJSAnalyzerFileExtensions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		ext  string
@@ -153,7 +158,7 @@ func TestJSAnalyzerFileExtensions(t *testing.T) {
 			}
 
 			analyzer := NewJSAnalyzer()
-			results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+			results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 			if err != nil {
 				t.Fatalf("Analyze failed: %v", err)
 			}
@@ -166,6 +171,7 @@ func TestJSAnalyzerFileExtensions(t *testing.T) {
 }
 
 func TestJSAnalyzerIgnoredExtensions(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	ignoredFiles := []string{"style.css", "data.json", "readme.md", "image.png", "config.yaml"}
@@ -177,7 +183,7 @@ func TestJSAnalyzerIgnoredExtensions(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -188,14 +194,16 @@ func TestJSAnalyzerIgnoredExtensions(t *testing.T) {
 }
 
 func TestJSAnalyzerNonExistentDir(t *testing.T) {
+	t.Parallel()
 	analyzer := NewJSAnalyzer()
-	_, err := analyzer.Analyze("/non/existent/dir", []string{"axios"})
+	_, err := analyzer.Analyze("/non/existent/dir", []string{"axios"}, nil)
 	if err == nil {
 		t.Error("Should return error for non-existent directory")
 	}
 }
 
 func TestJSAnalyzerEmptyDeps(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := `import axios from 'axios';`
@@ -204,7 +212,7 @@ func TestJSAnalyzerEmptyDeps(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{})
+	results, err := analyzer.Analyze(tmpDir, []string{}, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -214,6 +222,7 @@ func TestJSAnalyzerEmptyDeps(t *testing.T) {
 }
 
 func TestJSAnalyzerCommentInCode(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := `
@@ -234,7 +243,7 @@ import react from 'react';
 
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios", "lodash", "react", "unused-single", "unused-multi", "unused-block", "unused-block2"}
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -252,6 +261,7 @@ import react from 'react';
 }
 
 func TestJSAnalyzerStringProtection(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := `
@@ -269,7 +279,7 @@ import realReact from 'react';
 
 	analyzer := NewJSAnalyzer()
 	deps := []string{"axios", "lodash", "react", "fake-axios", "fake-lodash", "fake-react"}
-	results, err := analyzer.Analyze(tmpDir, deps)
+	results, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -287,6 +297,7 @@ import realReact from 'react';
 }
 
 func TestJSAnalyzerRefCount(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	jsCode := `
@@ -300,7 +311,7 @@ const axios2 = require('axios');
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -311,6 +322,7 @@ const axios2 = require('axios');
 }
 
 func TestJSAnalyzerMultiFile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	subDir := filepath.Join(tmpDir, "src", "components")
@@ -326,7 +338,7 @@ func TestJSAnalyzerMultiFile(t *testing.T) {
 	}
 
 	analyzer := NewJSAnalyzer()
-	results, err := analyzer.Analyze(tmpDir, []string{"axios", "react"})
+	results, err := analyzer.Analyze(tmpDir, []string{"axios", "react"}, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -348,6 +360,7 @@ func TestJSAnalyzerMultiFile(t *testing.T) {
 }
 
 func TestExtractJSImports(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string

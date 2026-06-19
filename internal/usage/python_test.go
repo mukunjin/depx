@@ -7,6 +7,7 @@ import (
 )
 
 func TestPythonAnalyzer(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建 Python 源文件
@@ -24,7 +25,7 @@ def main():
 	analyzer := NewPythonAnalyzer()
 	deps := []string{"requests", "flask", "numpy", "unused-package"}
 
-	result, err := analyzer.Analyze(tmpDir, deps)
+	result, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -47,6 +48,7 @@ def main():
 }
 
 func TestPythonAnalyzerSubpath(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	code := `from requests.auth import HTTPBasicAuth
@@ -59,7 +61,7 @@ import numpy.linalg as la
 	analyzer := NewPythonAnalyzer()
 	deps := []string{"requests", "numpy"}
 
-	result, err := analyzer.Analyze(tmpDir, deps)
+	result, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -73,6 +75,7 @@ import numpy.linalg as la
 }
 
 func TestPythonAnalyzerSkipDirs(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建 venv 目录（应该被跳过）
@@ -96,7 +99,7 @@ func TestPythonAnalyzerSkipDirs(t *testing.T) {
 	analyzer := NewPythonAnalyzer()
 	deps := []string{"actual_dep", "should_be_ignored"}
 
-	result, err := analyzer.Analyze(tmpDir, deps)
+	result, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -110,6 +113,7 @@ func TestPythonAnalyzerSkipDirs(t *testing.T) {
 }
 
 func TestExtractPythonImports(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string
@@ -178,6 +182,7 @@ func TestExtractPythonImports(t *testing.T) {
 }
 
 func TestResolvePythonPackageName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		importPath string
@@ -200,6 +205,7 @@ func TestResolvePythonPackageName(t *testing.T) {
 }
 
 func TestRemovePythonComments(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string

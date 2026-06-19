@@ -24,6 +24,19 @@ type Dependency struct {
 	Requires []string // 依赖的其他包
 }
 
+// extractPackageName 从 npm lockfile packages 路径中提取包名
+// 例如: "node_modules/foo" -> "foo"
+// 例如: "node_modules/@scope/pkg" -> "@scope/pkg"
+// 例如: "node_modules/foo/node_modules/bar" -> "bar"
+func extractPackagePath(name string) string {
+	// 找到最后一个 "node_modules/" 的位置
+	idx := strings.LastIndex(name, "node_modules/")
+	if idx == -1 {
+		return name
+	}
+	return name[idx+len("node_modules/"):]
+}
+
 // DetectLockFile 检测并返回合适的 lock file 解析器
 func DetectLockFile(dir string) (LockFile, error) {
 	// 尝试 npm
@@ -93,6 +106,7 @@ func (lf *NpmLockFile) Type() string {
 // Dependencies 返回所有依赖
 func (lf *NpmLockFile) Dependencies() ([]Dependency, error) {
 	var deps []Dependency
+	seen := make(map[string]bool)
 
 	// 优先使用 packages（lockfileVersion 2+）
 	if lf.data.Packages != nil {
@@ -102,8 +116,16 @@ func (lf *NpmLockFile) Dependencies() ([]Dependency, error) {
 				continue
 			}
 
-			// 移除 "node_modules/" 前缀
-			cleanName := strings.TrimPrefix(name, "node_modules/")
+			// 提取包名：处理嵌套 node_modules 情况
+			// 例如 "node_modules/foo/node_modules/bar" -> "bar"
+			// 例如 "node_modules/@scope/pkg" -> "@scope/pkg"
+			cleanName := extractPackagePath(name)
+
+			// 去重：嵌套路径可能导致同一包名出现多次
+			if seen[cleanName] {
+				continue
+			}
+			seen[cleanName] = true
 
 			deps = append(deps, Dependency{
 				Name:     cleanName,
@@ -178,8 +200,10 @@ func (lf *GoLockFile) Dependencies() ([]Dependency, error) {
 		name := parts[0]
 		version := parts[1]
 
-		// 去重（go.sum 中同一模块可能出现多次）
-		key := name + "@" + version
+		// 去重（go.sum 中同一模块可能出现两次：version 和 version/go.mod）
+		// 使用模块名+主版本号作为去重键，忽略 /go.mod 后缀
+		cleanVersion := strings.TrimSuffix(version, "/go.mod")
+		key := name + "@" + cleanVersion
 		if seen[key] {
 			continue
 		}
@@ -187,7 +211,7 @@ func (lf *GoLockFile) Dependencies() ([]Dependency, error) {
 
 		deps = append(deps, Dependency{
 			Name:    name,
-			Version: version,
+			Version: cleanVersion,
 		})
 	}
 

@@ -12,8 +12,8 @@ Write-Host ""
 # Get version from Git tag
 $version = git describe --tags --abbrev=0 2>$null
 if (-not $version) {
-    Write-Host "[!] No Git tag found, using default version v0.0.0-dev" -ForegroundColor Yellow
-    $version = "v0.0.0-dev"
+    Write-Host "[!] No Git tag found, using default version dev" -ForegroundColor Yellow
+    $version = "dev"
 } else {
     Write-Host "[OK] Git tag: $version" -ForegroundColor Green
 }

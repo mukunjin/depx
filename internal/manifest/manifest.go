@@ -2,7 +2,7 @@ package manifest
 
 // Manifest 定义包管理器清单文件的接口
 type Manifest interface {
-	// Type 返回包管理器类型 ("npm", "go")
+	// Type 返回包管理器类型 ("npm", "go", "cargo", "pip")
 	Type() string
 	// Dependencies 返回声明的依赖包名列表
 	Dependencies() ([]string, error)

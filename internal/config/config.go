@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -25,11 +26,14 @@ type Config struct {
 	LockFile bool `yaml:"lock_file"`
 }
 
+// 默认排除的目录列表
+var defaultExcludeDirs = []string{"node_modules", "vendor", "dist", "build"}
+
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
 	return &Config{
 		Ignore:          []string{},
-		ExcludeDirs:     []string{"node_modules", "vendor", "dist", "build"},
+		ExcludeDirs:     append([]string(nil), defaultExcludeDirs...),
 		ExcludeFiles:    []string{},
 		ReadNodeModules: false,
 		LockFile:        true,
@@ -54,9 +58,13 @@ func Load(path string) (*Config, error) {
 // FindAndLoad 在项目目录中查找并加载 .depx.yml
 func FindAndLoad(dir string) (*Config, error) {
 	configPath := filepath.Join(dir, ".depx.yml")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// 配置文件不存在，返回默认配置
-		return DefaultConfig(), nil
+	if _, err := os.Stat(configPath); err != nil {
+		if os.IsNotExist(err) {
+			// 配置文件不存在，返回默认配置
+			return DefaultConfig(), nil
+		}
+		// 其他错误（如权限错误）应该返回
+		return nil, err
 	}
 
 	return Load(configPath)
@@ -80,4 +88,27 @@ func (c *Config) IsDirExcluded(dir string) bool {
 		}
 	}
 	return false
+}
+
+// Validate 验证配置的有效性，返回错误如果配置无效
+func (c *Config) Validate() error {
+	if c == nil {
+		return fmt.Errorf("config is nil")
+	}
+
+	// 验证 ExcludeDirs 不包含空字符串
+	for _, dir := range c.ExcludeDirs {
+		if dir == "" {
+			return fmt.Errorf("exclude_dirs contains empty string")
+		}
+	}
+
+	// 验证 ExcludeFiles 不包含空字符串
+	for _, pattern := range c.ExcludeFiles {
+		if pattern == "" {
+			return fmt.Errorf("exclude_files contains empty string")
+		}
+	}
+
+	return nil
 }

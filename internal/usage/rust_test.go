@@ -7,6 +7,7 @@ import (
 )
 
 func TestRustAnalyzer(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建 Rust 源文件
@@ -25,7 +26,7 @@ fn main() {
 	analyzer := NewRustAnalyzer()
 	deps := []string{"serde", "tokio", "reqwest", "unused-crate"}
 
-	result, err := analyzer.Analyze(tmpDir, deps)
+	result, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -48,6 +49,7 @@ fn main() {
 }
 
 func TestRustAnalyzerSubpath(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	code := `use serde_json::Value;
@@ -60,7 +62,7 @@ use tokio::sync::mpsc;
 	analyzer := NewRustAnalyzer()
 	deps := []string{"serde_json", "tokio"}
 
-	result, err := analyzer.Analyze(tmpDir, deps)
+	result, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -74,6 +76,7 @@ use tokio::sync::mpsc;
 }
 
 func TestRustAnalyzerSkipDirs(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// 创建 target 目录（应该被跳过）
@@ -97,7 +100,7 @@ func TestRustAnalyzerSkipDirs(t *testing.T) {
 	analyzer := NewRustAnalyzer()
 	deps := []string{"actual_dep", "should_be_ignored"}
 
-	result, err := analyzer.Analyze(tmpDir, deps)
+	result, err := analyzer.Analyze(tmpDir, deps, nil)
 	if err != nil {
 		t.Fatalf("Analyze failed: %v", err)
 	}
@@ -111,6 +114,7 @@ func TestRustAnalyzerSkipDirs(t *testing.T) {
 }
 
 func TestExtractRustImports(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		code     string
@@ -184,6 +188,7 @@ func TestExtractRustImports(t *testing.T) {
 }
 
 func TestResolveRustPackageName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		importPath string
@@ -206,6 +211,7 @@ func TestResolveRustPackageName(t *testing.T) {
 }
 
 func TestRemoveRustComments(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string

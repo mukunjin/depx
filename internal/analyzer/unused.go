@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/mukunjin/depx/internal/config"
+	"github.com/mukunjin/depx/internal/lockfile"
 	"github.com/mukunjin/depx/internal/manifest"
 	"github.com/mukunjin/depx/internal/usage"
 )
@@ -17,6 +18,7 @@ type ScanResult struct {
 	UsedDeps     int                              // 已使用依赖数
 	UnusedDeps   int                              // 未使用依赖数
 	UsageDetails map[string]*manifest.UsageResult // 每个依赖的使用详情
+	IndirectDeps []string                         // 间接依赖列表（来自 lockfile）
 }
 
 // Scan 扫描项目，检测未使用的依赖
@@ -59,6 +61,13 @@ func ScanWithConfig(dir string, cfg *config.Config) (*ScanResult, error) {
 		}
 	}
 
+	// 构建分析器选项
+	opts := &usage.Options{
+		ExcludeDirs:     cfg.ExcludeDirs,
+		ExcludeFiles:    cfg.ExcludeFiles,
+		ReadNodeModules: cfg.ReadNodeModules,
+	}
+
 	// 选择合适的分析器
 	analyzer, err := selectAnalyzer(m.Type())
 	if err != nil {
@@ -66,7 +75,7 @@ func ScanWithConfig(dir string, cfg *config.Config) (*ScanResult, error) {
 	}
 
 	// 分析使用情况
-	usageMap, err := analyzer.Analyze(absDir, filteredDeps)
+	usageMap, err := analyzer.Analyze(absDir, filteredDeps, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze usage: %w", err)
 	}
@@ -84,6 +93,36 @@ func ScanWithConfig(dir string, cfg *config.Config) (*ScanResult, error) {
 			result.UsedDeps++
 		} else {
 			result.UnusedDeps++
+		}
+	}
+
+	// 如果启用 lockfile 分析，获取间接依赖
+	if cfg.LockFile {
+		lf, err := lockfile.DetectLockFile(absDir)
+		if err != nil {
+			// lockfile 不存在或检测失败是正常情况，记录警告但不中断
+			fmt.Printf("Warning: could not detect lockfile: %v\n", err)
+		} else {
+			lockDeps, err := lf.Dependencies()
+			if err != nil {
+				fmt.Printf("Warning: could not read lockfile dependencies: %v\n", err)
+			} else if len(lockDeps) == 0 {
+				// 空依赖列表，跳过处理
+			} else {
+				// 提取间接依赖（在 lockfile 中但不在 manifest 中的依赖）
+				manifestDeps := make(map[string]bool)
+				for _, dep := range deps {
+					manifestDeps[dep] = true
+				}
+
+				indirectSet := make(map[string]bool)
+				for _, ld := range lockDeps {
+					if !manifestDeps[ld.Name] && !indirectSet[ld.Name] {
+						indirectSet[ld.Name] = true
+						result.IndirectDeps = append(result.IndirectDeps, ld.Name)
+					}
+				}
+			}
 		}
 	}
 

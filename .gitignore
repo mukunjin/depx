@@ -4,16 +4,21 @@
 *.dll
 *.so
 *.dylib
+*.o
+*.a
 
 # Test binary
 *.test
 
 # Output of go coverage tool
 *.out
+coverage/
+*.coverprofile
 
 # Dependency directories
 node_modules/
 vendor/
+dist/
 
 # IDE
 .idea/
@@ -21,19 +26,23 @@ vendor/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+.env
+.env.local
 
 # Build output
-dist/
 build/
-
-# Test data (optional: keep if you want to track test projects)
-# testdata/
+out/
 
 # Logs
 *.log
-PLAN.md
-PLAN_PHASE2.md
+logs/
+
+# Go
+go.sum.bak
+*.mod.bak

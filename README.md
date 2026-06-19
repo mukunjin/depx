@@ -1,5 +1,8 @@
 # depx
 
+[![Go Version](https://img.shields.io/badge/Go-1.26.4-00ADD8?style=flat-square&logo=go)](https://golang.org)
+[![License](https://img.shields.io/badge/License-GPLv3-blue?style=flat-square)](./LICENSE)
+
 Dependency Analyzer - Detect unused dependencies in your project and analyze dependency surface area.
 
 **中文文档**: [README_zh.md](README_zh.md)

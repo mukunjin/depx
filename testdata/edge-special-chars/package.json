@@ -1,0 +1,16 @@
+{
+  "name": "edge-special-chars",
+  "version": "1.0.0",
+  "dependencies": {
+    "@babel/core": "^7.20.0",
+    "@babel/preset-env": "^7.20.0",
+    "@types/node": "^18.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "lodash-es": "^4.17.21",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "@vue/test-utils": "^2.0.0"
+  }
+}

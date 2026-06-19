@@ -1,5 +1,8 @@
 # depx
 
+[![Go 版本](https://img.shields.io/badge/Go-1.26.4-00ADD8?style=flat-square&logo=go)](https://golang.org)
+[![许可证](https://img.shields.io/badge/License-GPLv3-blue?style=flat-square)](./LICENSE)
+
 依赖分析工具 - 检测项目中未使用的依赖，分析依赖影响面。
 
 **English Documentation**: [README.md](README.md)

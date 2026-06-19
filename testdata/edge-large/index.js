@@ -1,0 +1,21 @@
+import axios from 'axios';
+import lodash from 'lodash';
+import moment from 'moment';
+import chalk from 'chalk';
+import express from 'express';
+import React from 'react';
+import ReactDOM from 'react-dom';
+import Vue from 'vue';
+import angular from 'angular';
+import $ from 'jquery';
+
+const app = express();
+const client = axios.create();
+const _ = lodash;
+const now = moment();
+const color = chalk.red('test');
+const element = <div>React</div>;
+ReactDOM.render(element, document.getElementById('root'));
+new Vue({});
+angular.module('app', []);
+$('body').hide();

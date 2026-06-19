@@ -66,7 +66,7 @@ import axios from "axios";
 				}
 			}
 
-			err := runSurface(tt.path)
+			err := runSurface(tt.path, "")
 			if tt.expectError {
 				if err == nil {
 					t.Error("expected error, got nil")

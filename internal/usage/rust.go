@@ -39,7 +39,7 @@ var (
 )
 
 // Analyze 扫描目录下所有 Rust 源文件，返回每个依赖的使用情况
-func (r *RustAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.UsageResult, error) {
+func (r *RustAnalyzer) Analyze(dir string, deps []string, opts *Options) (map[string]*manifest.UsageResult, error) {
 	// 检查目录是否存在
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return nil, err
@@ -62,19 +62,36 @@ func (r *RustAnalyzer) Analyze(dir string, deps []string) (map[string]*manifest.
 		fileTrackers[dep] = make(map[string]bool)
 	}
 
+	// 构建跳过目录集合
+	skipDirs := make(map[string]bool)
+	for k, v := range rustSkipDirs {
+		skipDirs[k] = v
+	}
+	// 添加自定义排除目录
+	if opts != nil {
+		for _, d := range opts.ExcludeDirs {
+			skipDirs[d] = true
+		}
+	}
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // 跳过无法访问的文件
+			return err // 返回错误而不是静默跳过
 		}
 		if info.IsDir() {
-			if rustSkipDirs[info.Name()] {
+			if skipDirs[info.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		ext := filepath.Ext(info.Name())
+		ext := strings.ToLower(filepath.Ext(info.Name()))
 		if !rustExtensions[ext] {
+			return nil
+		}
+
+		// 检查文件模式排除
+		if opts != nil && shouldExcludeFile(path, opts.ExcludeFiles) {
 			return nil
 		}
 
