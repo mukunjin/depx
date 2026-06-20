@@ -104,6 +104,10 @@ depx scan C:\path\to\project
 # 使用自定义配置扫描
 depx scan --config C:\path\to\.depx.yml
 
+# 显示间接依赖详情（默认只显示数量）
+depx scan --indirect
+depx scan -i
+
 # 显示帮助
 depx --help
 
@@ -152,6 +156,178 @@ depx surface
     Modules: 1
     References: 6
     Criticality: Low
+```
+
+## 架构
+
+```
+depx
+├── cmd/
+│   ├── root.go                  # 根命令
+│   ├── root_test.go
+│   ├── scan.go                  # 扫描子命令
+│   ├── scan_test.go
+│   ├── surface.go               # 影响面分析命令
+│   └── surface_test.go
+├── internal/
+│   ├── analyzer/
+│   │   ├── unused.go            # 核心扫描逻辑
+│   │   └── unused_test.go
+│   ├── config/
+│   │   ├── config.go            # .depx.yml 解析
+│   │   └── config_test.go
+│   ├── filter/
+│   │   ├── file.go              # 文件/目录排除规则
+│   │   └── file_test.go
+│   ├── lockfile/
+│   │   ├── lockfile.go          # 统一接口
+│   │   └── lockfile_test.go
+│   ├── manifest/
+│   │   ├── cargo.go             # Cargo.toml 解析器
+│   │   ├── cargo_test.go
+│   │   ├── gomod.go             # go.mod 解析器
+│   │   ├── manifest.go          # Manifest 接口
+│   │   ├── manifest_test.go
+│   │   ├── npm.go               # package.json 解析器
+│   │   ├── pip.go               # requirements.txt 解析器
+│   │   └── pip_test.go
+│   ├── report/
+│   │   ├── terminal.go          # 终端输出
+│   │   └── terminal_test.go
+│   ├── surface/
+│   │   ├── surface.go           # 核心逻辑
+│   │   └── surface_test.go
+│   └── usage/
+│       ├── boundary_test.go     # 边界条件测试
+│       ├── golang.go            # Go import 分析
+│       ├── golang_test.go
+│       ├── js.go                # JS/TS import 分析
+│       ├── js_test.go
+│       ├── python.go            # Python import 分析
+│       ├── python_test.go
+│       ├── rust.go              # Rust use 分析
+│       ├── rust_test.go
+│       └── usage.go             # Analyzer 接口
+├── tests/
+│   ├── integration_test.go      # 端到端测试
+│   └── helpers/
+│       └── helpers.go           # 测试辅助函数
+├── testdata/
+│   ├── edge-all-used/
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── edge-empty/
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── edge-large/
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── edge-no-source/
+│   │   └── package.json
+│   ├── edge-none-used/
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── edge-special-chars/
+│   │   ├── index.ts
+│   │   └── package.json
+│   ├── go-complex/
+│   │   ├── handlers/
+│   │   │   ├── handlers.go
+│   │   │   └── handlers_test.go
+│   │   ├── go.mod
+│   │   └── main.go
+│   ├── go-project/
+│   │   ├── go.mod
+│   │   └── main.go
+│   ├── npm-complex/
+│   │   ├── src/
+│   │   │   ├── __tests__/
+│   │   │   │   └── index.test.ts
+│   │   │   ├── hooks/
+│   │   │   │   └── useApi.ts
+│   │   │   ├── Component.vue
+│   │   │   └── index.ts
+│   │   └── package.json
+│   ├── npm-project/
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── python-complex/
+│   │   ├── app.py
+│   │   ├── database.py
+│   │   ├── models.py
+│   │   └── requirements.txt
+│   ├── python-project/
+│   │   ├── main.py
+│   │   └── requirements.txt
+│   ├── real-npm/
+│   │   ├── src/
+│   │   │   ├── utils/
+│   │   │   │   ├── api.js
+│   │   │   │   └── helpers.js
+│   │   │   ├── index.js
+│   │   │   └── server.js
+│   │   └── package.json
+│   ├── rust-complex/
+│   │   ├── src/
+│   │   │   ├── handlers.rs
+│   │   │   └── main.rs
+│   │   └── Cargo.toml
+│   ├── rust-project/
+│   │   ├── Cargo.toml
+│   │   └── main.rs
+│   ├── config-project/
+│   │   ├── .depx.yml
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── complex-mixed/
+│   │   ├── Cargo.toml
+│   │   ├── go.mod
+│   │   ├── package.json
+│   │   ├── requirements.txt
+│   │   ├── index.js
+│   │   ├── main.go
+│   │   ├── main.py
+│   │   └── lib.rs
+│   ├── complex-npm-workspaces/
+│   │   ├── package.json
+│   │   └── packages/
+│   │       ├── core/
+│   │       │   ├── package.json
+│   │       │   └── index.ts
+│   │       └── utils/
+│   │           ├── package.json
+│   │           └── index.ts
+│   ├── complex-cargo-workspaces/
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   └── main.rs
+│   │   └── crates/
+│   │       ├── core/
+│   │       │   ├── Cargo.toml
+│   │       │   └── src/
+│   │       │       └── lib.rs
+│   │       └── utils/
+│   │           ├── Cargo.toml
+│   │           └── src/
+│   │               └── lib.rs
+│   ├── error-corrupted-lockfile/
+│   │   ├── index.js
+│   │   ├── package.json
+│   │   └── package-lock.json
+│   ├── error-invalid-json/
+│   │   └── package.json
+│   └── error-invalid-toml/
+│       ├── Cargo.toml
+│       └── main.rs
+├── .gitignore
+├── build.ps1                    # 构建脚本（自动从 Git tag 获取版本）
+├── install.ps1                  # Windows 安装脚本
+├── LICENSE
+├── main.go                      # 入口文件
+├── README.md                    # 文档（英文）
+├── README_zh.md                 # 文档（中文）
+├── go.mod                       # Go 模块定义
+└── go.sum                       # Go 依赖校验文件
 ```
 
 ## 配置

@@ -10,7 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configPath string
+var (
+	configPath   string
+	showIndirect bool
+)
 
 var scanCmd = &cobra.Command{
 	Use:   "scan [path]",
@@ -23,11 +26,11 @@ var scanCmd = &cobra.Command{
 			path = args[0]
 		}
 
-		return runScan(path, configPath)
+		return runScan(path, configPath, showIndirect)
 	},
 }
 
-func runScan(path, configPath string) error {
+func runScan(path, configPath string, showIndirect bool) error {
 	// 验证路径是否存在
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return fmt.Errorf("path does not exist: %s", path)
@@ -53,11 +56,12 @@ func runScan(path, configPath string) error {
 		return err
 	}
 
-	report.PrintTerminal(result)
+	report.PrintTerminal(result, showIndirect)
 	return nil
 }
 
 func init() {
 	scanCmd.Flags().StringVarP(&configPath, "config", "c", "", "配置文件路径 (.depx.yml)")
+	scanCmd.Flags().BoolVarP(&showIndirect, "indirect", "i", false, "显示间接依赖详情")
 	rootCmd.AddCommand(scanCmd)
 }

@@ -83,7 +83,7 @@ func TestRunScan(t *testing.T) {
 				}
 			}
 
-			err := runScan(tt.path, tt.configPath)
+			err := runScan(tt.path, tt.configPath, false)
 			if tt.expectError {
 				if err == nil {
 					t.Error("expected error, got nil")
@@ -204,7 +204,7 @@ func TestRunScanWithInvalidConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath)
+	err := runScan(".", configPath, false)
 	if err == nil {
 		t.Error("expected error for invalid config, got nil")
 	}
@@ -232,7 +232,7 @@ func TestRunScanWithEmptyConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath)
+	err := runScan(".", configPath, false)
 	if err != nil {
 		t.Errorf("unexpected error for empty config: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestRunScanWithExcludeDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath)
+	err := runScan(".", configPath, false)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestRunScanWithLockFileDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath)
+	err := runScan(".", configPath, false)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

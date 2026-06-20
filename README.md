@@ -104,6 +104,10 @@ depx scan C:\path\to\project
 # Scan with custom config
 depx scan --config C:\path\to\.depx.yml
 
+# Show indirect dependencies details (default: only show count)
+depx scan --indirect
+depx scan -i
+
 # Show help
 depx --help
 
@@ -172,6 +176,9 @@ depx
 │   ├── config/
 │   │   ├── config.go            # .depx.yml parsing
 │   │   └── config_test.go
+│   ├── filter/
+│   │   ├── file.go              # File/directory exclusion rules
+│   │   └── file_test.go
 │   ├── lockfile/
 │   │   ├── lockfile.go          # Unified interface
 │   │   └── lockfile_test.go
@@ -202,15 +209,26 @@ depx
 │       ├── rust_test.go
 │       └── usage.go             # Analyzer interface
 ├── tests/
-│   └── integration_test.go      # End-to-end tests
+│   ├── integration_test.go      # End-to-end tests
+│   └── helpers/
+│       └── helpers.go           # Test helper functions
 ├── testdata/
 │   ├── edge-all-used/
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── edge-empty/
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── edge-large/
 │   │   ├── index.js
 │   │   └── package.json
 │   ├── edge-no-source/
 │   │   └── package.json
 │   ├── edge-none-used/
 │   │   ├── index.js
+│   │   └── package.json
+│   ├── edge-special-chars/
+│   │   ├── index.ts
 │   │   └── package.json
 │   ├── go-complex/
 │   │   ├── handlers/
@@ -254,7 +272,51 @@ depx
 │   │   │   ├── handlers.rs
 │   │   │   └── main.rs
 │   │   └── Cargo.toml
-│   └── rust-project/
+│   ├── rust-project/
+│   │   ├── Cargo.toml
+│   │   └── main.rs
+│   ├── config-project/
+│   │   ├── .depx.yml
+│   │   ├── index.js
+│   │   └── package.json
+│   ├── complex-mixed/
+│   │   ├── Cargo.toml
+│   │   ├── go.mod
+│   │   ├── package.json
+│   │   ├── requirements.txt
+│   │   ├── index.js
+│   │   ├── main.go
+│   │   ├── main.py
+│   │   └── lib.rs
+│   ├── complex-npm-workspaces/
+│   │   ├── package.json
+│   │   └── packages/
+│   │       ├── core/
+│   │       │   ├── package.json
+│   │       │   └── index.ts
+│   │       └── utils/
+│   │           ├── package.json
+│   │           └── index.ts
+│   ├── complex-cargo-workspaces/
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   └── main.rs
+│   │   └── crates/
+│   │       ├── core/
+│   │       │   ├── Cargo.toml
+│   │       │   └── src/
+│   │       │       └── lib.rs
+│   │       └── utils/
+│   │           ├── Cargo.toml
+│   │           └── src/
+│   │               └── lib.rs
+│   ├── error-corrupted-lockfile/
+│   │   ├── index.js
+│   │   ├── package.json
+│   │   └── package-lock.json
+│   ├── error-invalid-json/
+│   │   └── package.json
+│   └── error-invalid-toml/
 │       ├── Cargo.toml
 │       └── main.rs
 ├── .gitignore

@@ -10,7 +10,7 @@ import (
 )
 
 // PrintTerminal 在终端打印扫描结果
-func PrintTerminal(result *analyzer.ScanResult) {
+func PrintTerminal(result *analyzer.ScanResult, showIndirect bool) {
 	bold := color.New(color.Bold)
 	cyan := color.New(color.FgCyan)
 	green := color.New(color.FgGreen)
@@ -61,8 +61,8 @@ func PrintTerminal(result *analyzer.ScanResult) {
 		green.Println("\n  [OK] All dependencies are used!")
 	}
 
-	// 间接依赖列表
-	if len(result.IndirectDeps) > 0 {
+	// 间接依赖列表（仅在 showIndirect 为 true 时显示）
+	if showIndirect && len(result.IndirectDeps) > 0 {
 		cyan.Println("\n  Indirect Dependencies")
 		cyan.Println("--------------------------")
 

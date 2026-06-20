@@ -37,8 +37,9 @@ func captureOutput(f func()) string {
 
 func TestPrintTerminal(t *testing.T) {
 	tests := []struct {
-		name   string
-		result *analyzer.ScanResult
+		name          string
+		result        *analyzer.ScanResult
+		showIndirect  bool
 	}{
 		{
 			name: "all dependencies used",
@@ -54,6 +55,7 @@ func TestPrintTerminal(t *testing.T) {
 					"axios":  {Package: "axios", Used: true},
 				},
 			},
+			showIndirect: false,
 		},
 		{
 			name: "some dependencies unused",
@@ -71,6 +73,7 @@ func TestPrintTerminal(t *testing.T) {
 					"typescript": {Package: "typescript", Used: false},
 				},
 			},
+			showIndirect: false,
 		},
 		{
 			name: "all dependencies unused",
@@ -85,13 +88,46 @@ func TestPrintTerminal(t *testing.T) {
 					"github.com/sirupsen/logrus": {Package: "github.com/sirupsen/logrus", Used: false},
 				},
 			},
+			showIndirect: false,
+		},
+		{
+			name: "with indirect dependencies hidden",
+			result: &analyzer.ScanResult{
+				Path:         "/test/project",
+				ManifestType: "npm",
+				TotalDeps:    2,
+				UsedDeps:     2,
+				UnusedDeps:   0,
+				IndirectDeps: []string{"dep-a", "dep-b", "dep-c"},
+				UsageDetails: map[string]*manifest.UsageResult{
+					"lodash": {Package: "lodash", Used: true},
+					"react":  {Package: "react", Used: true},
+				},
+			},
+			showIndirect: false,
+		},
+		{
+			name: "with indirect dependencies shown",
+			result: &analyzer.ScanResult{
+				Path:         "/test/project",
+				ManifestType: "npm",
+				TotalDeps:    2,
+				UsedDeps:     2,
+				UnusedDeps:   0,
+				IndirectDeps: []string{"dep-a", "dep-b", "dep-c"},
+				UsageDetails: map[string]*manifest.UsageResult{
+					"lodash": {Package: "lodash", Used: true},
+					"react":  {Package: "react", Used: true},
+				},
+			},
+			showIndirect: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			output := captureOutput(func() {
-				PrintTerminal(tt.result)
+				PrintTerminal(tt.result, tt.showIndirect)
 			})
 
 			// 验证输出包含关键信息
@@ -113,6 +149,31 @@ func TestPrintTerminal(t *testing.T) {
 			} else {
 				if !strings.Contains(output, "All dependencies are used") {
 					t.Errorf("output should contain 'All dependencies are used' when no unused deps, got: %s", output)
+				}
+			}
+
+			// 验证间接依赖显示逻辑
+			if len(tt.result.IndirectDeps) > 0 {
+				// 始终显示数量（%-16s 格式会有填充空格）
+				if !strings.Contains(output, "Indirect:") {
+					t.Errorf("output should contain 'Indirect:', got: %s", output)
+				}
+
+				if tt.showIndirect {
+					// 当 showIndirect 为 true 时，应该显示详情
+					if !strings.Contains(output, "Indirect Dependencies") {
+						t.Errorf("output should contain 'Indirect Dependencies' section when showIndirect is true, got: %s", output)
+					}
+					for _, dep := range tt.result.IndirectDeps {
+						if !strings.Contains(output, dep) {
+							t.Errorf("output should contain indirect dep %q when showIndirect is true, got: %s", dep, output)
+						}
+					}
+				} else {
+					// 当 showIndirect 为 false 时，不应该显示详情列表
+					if strings.Contains(output, "[i]") {
+						t.Errorf("output should NOT contain '[i]' entries when showIndirect is false, got: %s", output)
+					}
 				}
 			}
 		})
