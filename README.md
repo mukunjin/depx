@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.26.4-00ADD8?style=flat-square&logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-GPLv3-blue?style=flat-square)](./LICENSE)
 
-Dependency analyzer for modern projects — detect unused dependencies and assess runtime dependency surface area.
+Dependency intelligence CLI for modern projects — understand dependency risk, impact, and project structure.
 
 **中文文档**: [README_zh.md](README_zh.md)
 
@@ -11,9 +11,9 @@ Dependency analyzer for modern projects — detect unused dependencies and asses
 
 ## Features
 
-- **Unused Detection** — Scan manifest files and match declared dependencies against source imports
-- **Surface Area Analysis** — Measure how widely runtime dependencies are used (files, modules, ref count, criticality)
-- **Lock File Analysis** — Parse lock files for transitive dependency visibility
+- **Surface Area Analysis** — Understand dependency risk and impact. Measure how widely each dependency is used (files, modules, ref count, criticality ranking)
+- **Dependency Intelligence** — Not just "unused: lodash". See the full picture: used, unused, type packages, indirect packages — understand your project structure at a glance
+- **Lock File Analysis** — Parse lock files for transitive dependency visibility and shared indirect dependency mapping
 - **Configuration** — Customize ignore rules and exclusions via `.depx.yml`
 
 ## Supported
@@ -33,8 +33,8 @@ Dependency analyzer for modern projects — detect unused dependencies and asses
 git clone https://github.com/mukunjin/depx.git
 cd depx
 go build .
-depx scan
 depx surface
+depx scan
 ```
 
 ## Installation (Windows)
@@ -84,15 +84,37 @@ The install script will:
 
 ## Usage
 
-### `scan` vs `surface`
+### `surface` vs `scan`
 
-| | `depx scan` | `depx surface` |
-|---|-------------|----------------|
-| **Purpose** | Find unused dependencies | Measure usage breadth of dependencies |
-| **Scope** | `dependencies` + `devDependencies` | `dependencies` only (use `--dev` for dev) |
-| **Output** | Runtime / Tool / Unused lists | Files, modules, ref count, criticality |
-| **Indirect deps** | Summary with `--indirect`, full with `--indirect-all` | Shared transitive summary with `--indirect` |
-| **Type packages** | Separate `@types/*` stats | Excluded entirely |
+| | `depx surface` | `depx scan` |
+|---|----------------|-------------|
+| **Purpose** | Dependency risk — understand impact and criticality | Dependency intelligence — understand project structure |
+| **Scope** | `dependencies` only (use `--dev` for dev) | `dependencies` + `devDependencies` |
+| **Output** | Files, modules, ref count, criticality ranking | Runtime / Tool / Unused lists + full stats |
+| **Indirect deps** | Shared transitive summary with `--indirect` | Summary with `--indirect`, full with `--indirect-all` |
+| **Type packages** | Excluded entirely | Separate `@types/*` stats |
+
+### Surface Area Analysis
+
+```bash
+depx surface              # runtime dependencies only
+depx surface --dev        # include devDependencies
+depx surface -D
+depx surface --indirect   # shared transitive dependency summary
+depx surface -i
+```
+
+Example output:
+
+![surface output](images/surface_cmd.png)
+
+**Notes:**
+- Default scope is **runtime surface** (`dependencies` only)
+- **Score** = `RefCount × 5 + Modules` — simple, no double-counting
+- **Criticality** uses **percentile ranking** — Top 20% = High, Top 50% = Medium, rest = Low. Any project always has a clear hierarchy regardless of size
+- `--indirect` shows total transitive count + packages required by **2+ direct packages**
+- Shared indirect graph requires `package-lock.json` (npm lockfile v2+ recommended)
+- `@types/*` are excluded
 
 ### Scan
 
@@ -111,120 +133,13 @@ depx scan -t
 
 Example output:
 
-```
-  Project Summary
---------------------------
-  Path:            /path/to/project
-  Package Manager: npm
-  Dependencies:    12
-  Used:            7
-  Unused:          5
-  Type Packages:   3 (use --types to show)
-  Indirect:        358 (use --indirect to show)
-
-  Runtime Dependencies
---------------------------
-  [✓] express
-  [✓] lodash
-  [✓] axios
-
-  Tool Packages
---------------------------
-  [✓] jest
-  [✓] eslint
-
-  Unused Dependencies
---------------------------
-  [x] moment
-  [x] chalk
-```
-
-With `--indirect` flag:
-
-```
-  Indirect Dependencies
---------------------------
-  Total: 358
-
-  Top Shared
-  --------------------------
-  clsx                 (4 parents)
-  scheduler            (3 parents)
-  redux                (2 parents)
-
-  Use --indirect-all to show all packages.
-```
+![scan output](images/scan_cmd.png)
 
 **Notes:**
 - `@types/*` packages are counted separately and excluded from Runtime/Tool/Unused lists
 - **Runtime Dependencies**: packages from `dependencies` (production)
 - **Tool Packages**: packages from `devDependencies` (build tools, test frameworks, etc.)
 - Enable `lock_file: true` in `.depx.yml` (default) to see indirect dependency counts
-
-### Surface Area Analysis
-
-```bash
-depx surface              # runtime dependencies only
-depx surface --dev        # include devDependencies
-depx surface -D
-depx surface --indirect   # shared transitive dependency summary
-depx surface -i
-```
-
-Example output:
-
-```
-  Surface Area
-===================================
-
-  Summary
---------------------------
-  Packages:     10
-  High:         2
-  Medium:       3
-  Low:          5
-
-  Most Critical
---------------------------
-  @mui/material
-  Score: 64
-
-  Runtime Surface
---------------------------
-  @mui/material
-    Criticality: High
-    Files: 43
-    Modules: 8
-    Ref Count: 182
-
-  chalk
-    Criticality: Low
-    Files: 4
-    Modules: 1
-    Ref Count: 6
-
-  Indirect Packages
---------------------------
-
-  Total: 531
-
-  Top Shared Dependencies
---------------------------
-
-  clsx
-    Required By: 4 direct packages
-
-  scheduler
-    Required By: 3 direct packages
-```
-
-**Notes:**
-- Default scope is **runtime surface** (`dependencies` only)
-- **Score** = `RefCount × 5 + Modules` — simple, no double-counting
-- **Criticality** uses **percentile ranking** — Top 20% = High, Top 50% = Medium, rest = Low. Any project always has a clear hierarchy regardless of size
-- `--indirect` shows total transitive count + packages required by **2+ direct packages**
-- Shared indirect graph requires `package-lock.json` (npm lockfile v2+ recommended)
-- `@types/*` are excluded
 
 ## Configuration
 

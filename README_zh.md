@@ -3,7 +3,7 @@
 [![Go 版本](https://img.shields.io/badge/Go-1.26.4-00ADD8?style=flat-square&logo=go)](https://golang.org)
 [![许可证](https://img.shields.io/badge/License-GPLv3-blue?style=flat-square)](./LICENSE)
 
-面向现代项目的依赖分析工具 — 检测未使用依赖，评估 runtime 依赖影响面。
+面向现代项目的依赖智能 CLI — 理解依赖风险、影响面与项目结构。
 
 **English Documentation**: [README.md](README.md)
 
@@ -11,9 +11,9 @@
 
 ## 功能
 
-- **未使用检测** — 扫描清单文件，对比源码 import 判断依赖是否被使用
-- **影响面分析** — 衡量 runtime 依赖的使用广度（文件数、模块数、引用次数、关键度）
-- **Lock File 分析** — 解析 lock 文件，展示传递依赖信息
+- **影响面分析** — 理解依赖风险与影响。衡量每个依赖的使用广度（文件数、模块数、引用次数、关键度排名）
+- **依赖智能** — 不只是告诉你"unused: lodash"。看到全貌：已用、未用、类型包、间接包 — 一目了然掌握项目结构
+- **Lock File 分析** — 解析 lock 文件，展示传递依赖信息与共享间接依赖映射
 - **配置支持** — 通过 `.depx.yml` 自定义忽略规则和排除目录
 
 ## 支持范围
@@ -33,8 +33,8 @@
 git clone https://github.com/mukunjin/depx.git
 cd depx
 go build .
-depx scan
 depx surface
+depx scan
 ```
 
 ## 安装（Windows）
@@ -84,15 +84,37 @@ cd depx
 
 ## 使用方法
 
-### `scan` vs `surface`
+### `surface` vs `scan`
 
-| | `depx scan` | `depx surface` |
-|---|-------------|----------------|
-| **用途** | 查找未使用依赖 | 衡量依赖的使用广度 |
-| **范围** | `dependencies` + `devDependencies` | 仅 `dependencies`（用 `--dev` 包含 dev） |
-| **输出** | Runtime / Tool / Unused 列表 | 文件数、模块数、引用次数、关键度 |
-| **间接依赖** | `--indirect` 显示摘要，`--indirect-all` 显示全部 | `--indirect` 显示共享传递依赖摘要 |
-| **类型包** | 单独统计 `@types/*` | 完全排除 |
+| | `depx surface` | `depx scan` |
+|---|----------------|-------------|
+| **用途** | 依赖风险 — 理解影响面与关键度 | 依赖智能 — 理解项目结构 |
+| **范围** | 仅 `dependencies`（用 `--dev` 包含 dev） | `dependencies` + `devDependencies` |
+| **输出** | 文件数、模块数、引用次数、关键度排名 | Runtime / Tool / Unused 列表 + 完整统计 |
+| **间接依赖** | `--indirect` 显示共享传递依赖摘要 | `--indirect` 显示摘要，`--indirect-all` 显示全部 |
+| **类型包** | 完全排除 | 单独统计 `@types/*` |
+
+### 影响面分析
+
+```bash
+depx surface              # 仅 runtime 依赖
+depx surface --dev        # 包含 devDependencies
+depx surface -D
+depx surface --indirect   # 共享传递依赖摘要
+depx surface -i
+```
+
+输出示例：
+
+![surface 输出](images/surface_cmd.png)
+
+**说明：**
+- 默认分析 **runtime surface**（仅 `dependencies`）
+- **Score** = `RefCount × 5 + Modules` — 简洁直观，无重复计权
+- **Criticality** 采用**百分位排名** — Top 20% = High，Top 50% = Medium，其余 = Low。无论项目大小都有清晰的层次区分
+- `--indirect` 显示传递依赖总数 + 被 **2 个以上** direct package 依赖的共享包
+- 共享间接依赖图需要 `package-lock.json`（推荐 lockfile v2+）
+- `@types/*` 完全排除
 
 ### Scan
 
@@ -111,120 +133,13 @@ depx scan -t
 
 输出示例：
 
-```
-  Project Summary
---------------------------
-  Path:            /path/to/project
-  Package Manager: npm
-  Dependencies:    12
-  Used:            7
-  Unused:          5
-  Type Packages:   3 (use --types to show)
-  Indirect:        358 (use --indirect to show)
-
-  Runtime Dependencies
---------------------------
-  [✓] express
-  [✓] lodash
-  [✓] axios
-
-  Tool Packages
---------------------------
-  [✓] jest
-  [✓] eslint
-
-  Unused Dependencies
---------------------------
-  [x] moment
-  [x] chalk
-```
-
-使用 `--indirect` 参数：
-
-```
-  Indirect Dependencies
---------------------------
-  Total: 358
-
-  Top Shared
-  --------------------------
-  clsx                 (4 parents)
-  scheduler            (3 parents)
-  redux                (2 parents)
-
-  Use --indirect-all to show all packages.
-```
+![scan 输出](images/scan_cmd.png)
 
 **说明：**
 - `@types/*` 包单独统计，不包含在 Runtime/Tool/Unused 列表中
 - **Runtime Dependencies**：来自 `dependencies`（生产环境依赖）
 - **Tool Packages**：来自 `devDependencies`（构建工具、测试框架等）
 - 在 `.depx.yml` 中启用 `lock_file: true`（默认开启）可查看间接依赖数量
-
-### 影响面分析
-
-```bash
-depx surface              # 仅 runtime 依赖
-depx surface --dev        # 包含 devDependencies
-depx surface -D
-depx surface --indirect   # 共享传递依赖摘要
-depx surface -i
-```
-
-输出示例：
-
-```
-  Surface Area
-===================================
-
-  Summary
---------------------------
-  Packages:     10
-  High:         2
-  Medium:       3
-  Low:          5
-
-  Most Critical
---------------------------
-  @mui/material
-  Score: 64
-
-  Runtime Surface
---------------------------
-  @mui/material
-    Criticality: High
-    Files: 43
-    Modules: 8
-    Ref Count: 182
-
-  chalk
-    Criticality: Low
-    Files: 4
-    Modules: 1
-    Ref Count: 6
-
-  Indirect Packages
---------------------------
-
-  Total: 531
-
-  Top Shared Dependencies
---------------------------
-
-  clsx
-    Required By: 4 direct packages
-
-  scheduler
-    Required By: 3 direct packages
-```
-
-**说明：**
-- 默认分析 **runtime surface**（仅 `dependencies`）
-- **Score** = `RefCount × 5 + Modules` — 简洁直观，无重复计权
-- **Criticality** 采用**百分位排名** — Top 20% = High，Top 50% = Medium，其余 = Low。无论项目大小都有清晰的层次区分
-- `--indirect` 显示传递依赖总数 + 被 **2 个以上** direct package 依赖的共享包
-- 共享间接依赖图需要 `package-lock.json`（推荐 lockfile v2+）
-- `@types/*` 完全排除
 
 ## 配置
 
