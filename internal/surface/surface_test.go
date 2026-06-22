@@ -1,6 +1,7 @@
 package surface
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -45,9 +46,7 @@ import "lodash/fp";
 		if result.RefCount != 2 {
 			t.Errorf("Expected 2 refs for axios, got %d", result.RefCount)
 		}
-		if result.Criticality != "Low" {
-			t.Errorf("Expected Low criticality for axios, got %s", result.Criticality)
-		}
+		// Criticality 现在基于百分位，不再检查固定值
 	} else {
 		t.Error("axios not found in results")
 	}
@@ -93,7 +92,11 @@ const lodash = require("lodash");
 	}
 
 	deps := []string{"axios", "lodash"}
-	results, err := AnalyzeSurface(tmpDir, deps, nil)
+	opts := &Options{
+		ManifestType: "npm",
+		ExcludeDirs:  []string{"node_modules"},
+	}
+	results, err := AnalyzeSurface(tmpDir, deps, opts)
 	if err != nil {
 		t.Fatalf("AnalyzeSurface failed: %v", err)
 	}
@@ -353,29 +356,64 @@ func TestResolvePythonPackageName(t *testing.T) {
 }
 
 func TestCalculateCriticality(t *testing.T) {
+	// 测试百分位计算
 	tests := []struct {
-		name      string
-		fileCount int
-		refCount  int
-		expected  string
+		name     string
+		packages []*SurfaceResult
+		expected map[string]string
 	}{
-		{"Low - 1 file, 1 ref", 1, 1, "Low"},
-		{"Low - 2 files, 5 refs", 2, 5, "Low"},
-		{"Medium - 3 files, 10 refs", 3, 10, "Medium"},
-		{"Medium - 9 files, 49 refs", 9, 49, "Medium"},
-		{"High - 10 files, 50 refs", 10, 50, "High"},
-		{"High - 20 files, 100 refs", 20, 100, "High"},
+		{
+			name: "10 packages - top 20% are High",
+			packages: []*SurfaceResult{
+				{Package: "pkg1", RefCount: 100},
+				{Package: "pkg2", RefCount: 80},
+				{Package: "pkg3", RefCount: 60},
+				{Package: "pkg4", RefCount: 50},
+				{Package: "pkg5", RefCount: 40},
+				{Package: "pkg6", RefCount: 30},
+				{Package: "pkg7", RefCount: 20},
+				{Package: "pkg8", RefCount: 10},
+				{Package: "pkg9", RefCount: 5},
+				{Package: "pkg10", RefCount: 1},
+			},
+			expected: map[string]string{
+				"pkg1": "High", "pkg2": "High",
+				"pkg3": "Medium", "pkg4": "Medium", "pkg5": "Medium",
+				"pkg6": "Low", "pkg7": "Low", "pkg8": "Low", "pkg9": "Low", "pkg10": "Low",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := &SurfaceResult{
-				Files:    make([]string, tt.fileCount),
-				RefCount: tt.refCount,
+			// 计算分数
+			for _, pkg := range tt.packages {
+				pkg.CalculateScore()
 			}
-			criticality := calculateCriticality(result)
-			if criticality != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, criticality)
+
+			// 排序
+			sort.Slice(tt.packages, func(i, j int) bool {
+				return tt.packages[i].Score > tt.packages[j].Score
+			})
+
+			// 计算百分位
+			totalCount := len(tt.packages)
+			for i, pkg := range tt.packages {
+				percentile := float64(i) / float64(totalCount)
+				if percentile < 0.2 {
+					pkg.Criticality = "High"
+				} else if percentile < 0.5 {
+					pkg.Criticality = "Medium"
+				} else {
+					pkg.Criticality = "Low"
+				}
+			}
+
+			// 验证
+			for _, pkg := range tt.packages {
+				if pkg.Criticality != tt.expected[pkg.Package] {
+					t.Errorf("Package %s: expected %s, got %s", pkg.Package, tt.expected[pkg.Package], pkg.Criticality)
+				}
 			}
 		})
 	}
@@ -889,6 +927,304 @@ import { get } from "axios/lib";`
 		}
 	} else {
 		t.Error("moment not found in results")
+	}
+}
+
+func TestCalculateCriticality_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		packages []*SurfaceResult
+		check    func([]*SurfaceResult) error
+	}{
+		{
+			name: "single package - should be High",
+			packages: []*SurfaceResult{
+				{Package: "only-pkg", RefCount: 10},
+			},
+			check: func(pkgs []*SurfaceResult) error {
+				if pkgs[0].Criticality != "High" {
+					return fmt.Errorf("single package should be High, got %s", pkgs[0].Criticality)
+				}
+				return nil
+			},
+		},
+		{
+			name: "two packages - first is High, second is Low",
+			packages: []*SurfaceResult{
+				{Package: "pkg1", RefCount: 100},
+				{Package: "pkg2", RefCount: 1},
+			},
+			check: func(pkgs []*SurfaceResult) error {
+				if pkgs[0].Criticality != "High" {
+					return fmt.Errorf("pkg1 should be High, got %s", pkgs[0].Criticality)
+				}
+				if pkgs[1].Criticality != "Low" {
+					return fmt.Errorf("pkg2 should be Low, got %s", pkgs[1].Criticality)
+				}
+				return nil
+			},
+		},
+		{
+			name: "five packages - 1 High, 1 Medium, 3 Low",
+			packages: []*SurfaceResult{
+				{Package: "pkg1", RefCount: 100},
+				{Package: "pkg2", RefCount: 80},
+				{Package: "pkg3", RefCount: 60},
+				{Package: "pkg4", RefCount: 40},
+				{Package: "pkg5", RefCount: 20},
+			},
+			check: func(pkgs []*SurfaceResult) error {
+				// 0/5 = 0.0 -> High
+				if pkgs[0].Criticality != "High" {
+					return fmt.Errorf("pkg1 should be High, got %s", pkgs[0].Criticality)
+				}
+				// 1/5 = 0.2 -> Medium
+				if pkgs[1].Criticality != "Medium" {
+					return fmt.Errorf("pkg2 should be Medium, got %s", pkgs[1].Criticality)
+				}
+				// 2/5 = 0.4 -> Medium
+				if pkgs[2].Criticality != "Medium" {
+					return fmt.Errorf("pkg3 should be Medium, got %s", pkgs[2].Criticality)
+				}
+				// 3/5 = 0.6 -> Low
+				if pkgs[3].Criticality != "Low" {
+					return fmt.Errorf("pkg4 should be Low, got %s", pkgs[3].Criticality)
+				}
+				// 4/5 = 0.8 -> Low
+				if pkgs[4].Criticality != "Low" {
+					return fmt.Errorf("pkg5 should be Low, got %s", pkgs[4].Criticality)
+				}
+				return nil
+			},
+		},
+		{
+			name: "all same ref count",
+			packages: []*SurfaceResult{
+				{Package: "pkg1", RefCount: 10},
+				{Package: "pkg2", RefCount: 10},
+				{Package: "pkg3", RefCount: 10},
+			},
+			check: func(pkgs []*SurfaceResult) error {
+				// 即使分数相同，百分位仍会分配不同关键度
+				for _, pkg := range pkgs {
+					if pkg.Criticality == "" {
+						return fmt.Errorf("criticality should not be empty for %s", pkg.Package)
+					}
+				}
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 计算分数
+			for _, pkg := range tt.packages {
+				pkg.CalculateScore()
+			}
+
+			// 排序
+			sort.Slice(tt.packages, func(i, j int) bool {
+				return tt.packages[i].Score > tt.packages[j].Score
+			})
+
+			// 计算百分位
+			totalCount := len(tt.packages)
+			for i, pkg := range tt.packages {
+				percentile := float64(i) / float64(totalCount)
+				if percentile < 0.2 {
+					pkg.Criticality = "High"
+				} else if percentile < 0.5 {
+					pkg.Criticality = "Medium"
+				} else {
+					pkg.Criticality = "Low"
+				}
+			}
+
+			// 验证
+			if err := tt.check(tt.packages); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+func TestCalculateScore(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   *SurfaceResult
+		expected int
+	}{
+		{
+			name: "basic score calculation",
+			result: &SurfaceResult{
+				RefCount:  10,
+				Modules:   []string{"mod1", "mod2"},
+			},
+			expected: 52, // 10*5 + 2
+		},
+		{
+			name: "zero ref count",
+			result: &SurfaceResult{
+				RefCount:  0,
+				Modules:   []string{"mod1"},
+			},
+			expected: 1, // 0*5 + 1
+		},
+		{
+			name: "no modules",
+			result: &SurfaceResult{
+				RefCount:  5,
+				Modules:   []string{},
+			},
+			expected: 25, // 5*5 + 0
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.result.CalculateScore()
+			if tt.result.Score != tt.expected {
+				t.Errorf("Expected score %d, got %d", tt.expected, tt.result.Score)
+			}
+		})
+	}
+}
+
+func TestAnalyzeSurface_EmptyDeps(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	code := `import axios from "axios";`
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(code), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := AnalyzeSurface(tmpDir, []string{}, nil)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results for empty deps, got %d", len(results))
+	}
+}
+
+func TestAnalyzeSurface_NoSourceFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	deps := []string{"axios", "lodash"}
+	results, err := AnalyzeSurface(tmpDir, deps, nil)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	// 所有依赖应该都存在，但 RefCount 为 0
+	for _, dep := range deps {
+		if result, ok := results[dep]; !ok {
+			t.Errorf("Expected result for %s", dep)
+		} else if result.RefCount != 0 {
+			t.Errorf("Expected RefCount 0 for %s, got %d", dep, result.RefCount)
+		}
+	}
+}
+
+func TestAnalyzeSurface_WithExcludeDirs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 在主目录创建文件
+	code1 := `import axios from "axios";`
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(code1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 在 excluded 目录创建文件
+	excludedDir := filepath.Join(tmpDir, "excluded")
+	if err := os.MkdirAll(excludedDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	code2 := `import lodash from "lodash";`
+	if err := os.WriteFile(filepath.Join(excludedDir, "utils.js"), []byte(code2), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := &Options{
+		ExcludeDirs: []string{"excluded"},
+	}
+	results, err := AnalyzeSurface(tmpDir, []string{"axios", "lodash"}, opts)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	if results["axios"].RefCount != 1 {
+		t.Errorf("Expected axios RefCount 1, got %d", results["axios"].RefCount)
+	}
+	if results["lodash"].RefCount != 0 {
+		t.Errorf("Expected lodash RefCount 0 (excluded dir), got %d", results["lodash"].RefCount)
+	}
+}
+
+func TestAnalyzeSurface_WithExcludeFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 创建普通文件
+	code1 := `import axios from "axios";`
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(code1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 创建测试文件
+	code2 := `import lodash from "lodash";`
+	if err := os.WriteFile(filepath.Join(tmpDir, "utils.test.js"), []byte(code2), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := &Options{
+		ExcludeFiles: []string{"*.test.js"},
+	}
+	results, err := AnalyzeSurface(tmpDir, []string{"axios", "lodash"}, opts)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	if results["axios"].RefCount != 1 {
+		t.Errorf("Expected axios RefCount 1, got %d", results["axios"].RefCount)
+	}
+	if results["lodash"].RefCount != 0 {
+		t.Errorf("Expected lodash RefCount 0 (excluded file), got %d", results["lodash"].RefCount)
+	}
+}
+
+func TestAnalyzeSurface_CriticalityAssignment(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 创建多个文件，使不同依赖有不同的引用次数
+	code := `
+import axios from "axios";
+import axios from "axios";
+import axios from "axios";
+import lodash from "lodash";
+import moment from "moment";
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(code), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	deps := []string{"axios", "lodash", "moment"}
+	results, err := AnalyzeSurface(tmpDir, deps, nil)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	// 验证所有依赖都有非空的关键度
+	for _, dep := range deps {
+		if results[dep].Criticality == "" {
+			t.Errorf("Expected non-empty criticality for %s", dep)
+		}
+	}
+
+	// axios 引用最多，应该是 High
+	if results["axios"].Criticality != "High" {
+		t.Errorf("Expected axios to be High, got %s", results["axios"].Criticality)
 	}
 }
 

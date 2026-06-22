@@ -9,8 +9,8 @@ var Version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:     "depx",
-	Short:   "Dependency Efficiency Analyzer",
-	Long:    `depx 是一个依赖效率分析工具，帮助开发者发现未使用的依赖。`,
+	Short:   "Dependency efficiency analyzer",
+	Long:    `depx analyzes project dependencies to find unused packages and assess dependency surface area.`,
 	Version: Version,
 }
 

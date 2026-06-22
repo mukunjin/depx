@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mukunjin/depx/internal/analyzer"
+	"github.com/mukunjin/depx/internal/manifest"
 	"github.com/mukunjin/depx/internal/surface"
 	"github.com/mukunjin/depx/tests/helpers"
 )
@@ -392,13 +393,14 @@ func TestIntegration_SurfaceCommand(t *testing.T) {
 		t.Fatalf("Dependencies failed: %v", err)
 	}
 
-	// 验证依赖列表
-	if len(deps) != 6 {
-		t.Errorf("Expected 6 deps, got %d", len(deps))
+	// 验证 runtime 依赖列表（默认 surface 只分析 dependencies）
+	if len(deps) != 4 {
+		t.Errorf("Expected 4 runtime deps, got %d", len(deps))
 	}
 
 	// 分析影响面
 	opts := &surface.Options{
+		ManifestType:    "npm",
 		ExcludeDirs:     []string{"node_modules"},
 		ExcludeFiles:    []string{},
 		ReadNodeModules: false,
@@ -410,8 +412,8 @@ func TestIntegration_SurfaceCommand(t *testing.T) {
 	}
 
 	// 验证结果
-	if len(results) != 6 {
-		t.Errorf("Expected 6 surface results, got %d", len(results))
+	if len(results) != 4 {
+		t.Errorf("Expected 4 surface results, got %d", len(results))
 	}
 
 	// 验证 axios 的影响面
@@ -618,5 +620,419 @@ func TestIntegration_CargoWorkspaces(t *testing.T) {
 	}
 	if _, ok := result.UsageDetails["tokio"]; !ok {
 		t.Error("tokio not found in results")
+	}
+}
+
+// TestIntegration_TypePackages 测试类型包处理
+func TestIntegration_TypePackages(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "type-packages-test")
+
+	// @types/* 包应该被单独统计
+	if result.TypePackages != 4 {
+		t.Errorf("Expected 4 type packages, got %d", result.TypePackages)
+	}
+
+	// @types/* 不应该出现在 runtime dependencies 统计中
+	// typescript 不是 @types/* 所以算在 runtime deps 中
+	if result.TotalDeps != 4 {
+		t.Errorf("Expected 4 runtime deps (3 runtime + typescript), got %d", result.TotalDeps)
+	}
+
+	// 验证 TypePkgNames 列表
+	if len(result.TypePkgNames) != 4 {
+		t.Errorf("Expected 4 type package names, got %d", len(result.TypePkgNames))
+	}
+}
+
+// TestIntegration_LockFileAnalysis 测试 lockfile 分析
+func TestIntegration_LockFileAnalysis(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "lockfile-analysis")
+
+	// 验证间接依赖被正确识别
+	if len(result.IndirectDeps) == 0 {
+		t.Error("Expected indirect dependencies from lockfile")
+	}
+
+	// 验证 runtime 依赖统计
+	if result.TotalDeps != 2 {
+		t.Errorf("Expected 2 runtime deps, got %d", result.TotalDeps)
+	}
+}
+
+// TestIntegration_YarnProject 测试 yarn 项目
+func TestIntegration_YarnProject(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "yarn-project")
+	helpers.AssertScanResult(t, result, "npm")
+
+	// 验证依赖数量（3 dependencies + 2 devDependencies = 5）
+	if result.TotalDeps != 5 {
+		t.Errorf("Expected 5 total deps, got %d", result.TotalDeps)
+	}
+
+	// express 和 lodash 应该被使用
+	if usage, ok := result.UsageDetails["express"]; ok {
+		if !usage.Used {
+			t.Error("express should be used")
+		}
+	} else {
+		t.Error("express not found")
+	}
+
+	if usage, ok := result.UsageDetails["lodash"]; ok {
+		if !usage.Used {
+			t.Error("lodash should be used")
+		}
+	} else {
+		t.Error("lodash not found")
+	}
+
+	// moment 应该未使用
+	if usage, ok := result.UsageDetails["moment"]; ok {
+		if usage.Used {
+			t.Error("moment should not be used")
+		}
+	} else {
+		t.Error("moment not found")
+	}
+}
+
+// TestIntegration_PnpmProject 测试 pnpm 项目
+func TestIntegration_PnpmProject(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "pnpm-project")
+	helpers.AssertScanResult(t, result, "npm")
+
+	// 验证依赖数量（3 dependencies + 2 devDependencies = 5）
+	if result.TotalDeps != 5 {
+		t.Errorf("Expected 5 total deps, got %d", result.TotalDeps)
+	}
+
+	// fastify 和 zod 应该被使用
+	if usage, ok := result.UsageDetails["fastify"]; ok {
+		if !usage.Used {
+			t.Error("fastify should be used")
+		}
+	} else {
+		t.Error("fastify not found")
+	}
+
+	if usage, ok := result.UsageDetails["zod"]; ok {
+		if !usage.Used {
+			t.Error("zod should be used")
+		}
+	} else {
+		t.Error("zod not found")
+	}
+
+	// pino 应该未使用
+	if usage, ok := result.UsageDetails["pino"]; ok {
+		if usage.Used {
+			t.Error("pino should not be used")
+		}
+	} else {
+		t.Error("pino not found")
+	}
+}
+
+// TestIntegration_IndirectDepsTest 测试间接依赖分析
+func TestIntegration_IndirectDepsTest(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "indirect-deps-test")
+	helpers.AssertScanResult(t, result, "npm")
+
+	// 验证直接依赖
+	if result.TotalDeps != 2 {
+		t.Errorf("Expected 2 total deps, got %d", result.TotalDeps)
+	}
+
+	// 验证间接依赖被识别
+	if len(result.IndirectDeps) == 0 {
+		t.Error("Expected indirect dependencies from lockfile")
+	}
+
+	// 验证常见的间接依赖
+	expectedIndirect := []string{"follow-redirects", "form-data", "proxy-from-env"}
+	for _, dep := range expectedIndirect {
+		found := false
+		for _, indirectDep := range result.IndirectDeps {
+			if indirectDep == dep {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected indirect dep '%s' not found", dep)
+		}
+	}
+}
+
+// TestIntegration_DevDepsSurface 测试 surface 命令的 dev 依赖分析
+func TestIntegration_DevDepsSurface(t *testing.T) {
+	t.Parallel()
+	testdataDir := filepath.Join("..", "testdata", "dev-deps-surface")
+	if _, err := os.Stat(testdataDir); os.IsNotExist(err) {
+		t.Skipf("testdata not found: %s", testdataDir)
+	}
+
+	// 获取依赖列表（包括 devDependencies）
+	m, err := analyzer.DetectManifest(testdataDir)
+	if err != nil {
+		t.Fatalf("DetectManifest failed: %v", err)
+	}
+
+	// 测试只获取 runtime 依赖
+	runtimeDeps, err := m.Dependencies()
+	if err != nil {
+		t.Fatalf("Dependencies failed: %v", err)
+	}
+	if len(runtimeDeps) != 2 {
+		t.Errorf("Expected 2 runtime deps, got %d", len(runtimeDeps))
+	}
+
+	// 测试获取所有依赖（包括 devDependencies）
+	allDeps, err := manifest.MergeWithDev(m)
+	if err != nil {
+		t.Fatalf("MergeWithDev failed: %v", err)
+	}
+	if len(allDeps) != 5 {
+		t.Errorf("Expected 5 total deps (2 runtime + 3 dev), got %d", len(allDeps))
+	}
+
+	// 分析影响面（只分析 runtime 依赖）
+	opts := &surface.Options{
+		ManifestType:    "npm",
+		ExcludeDirs:     []string{"node_modules"},
+		ExcludeFiles:    []string{},
+		ReadNodeModules: false,
+	}
+
+	results, err := surface.AnalyzeSurface(testdataDir, runtimeDeps, opts)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	// 验证结果
+	if len(results) != 2 {
+		t.Errorf("Expected 2 surface results, got %d", len(results))
+	}
+
+	// express 和 lodash 应该被分析
+	if _, ok := results["express"]; !ok {
+		t.Error("express not found in surface results")
+	}
+	if _, ok := results["lodash"]; !ok {
+		t.Error("lodash not found in surface results")
+	}
+}
+
+// TestIntegration_NoLockfileProject 测试无 lockfile 的项目
+func TestIntegration_NoLockfileProject(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "no-lockfile-project")
+	helpers.AssertScanResult(t, result, "npm")
+
+	// 验证依赖数量
+	if result.TotalDeps != 3 {
+		t.Errorf("Expected 3 total deps, got %d", result.TotalDeps)
+	}
+
+	// 验证没有间接依赖（因为没有 lockfile）
+	if len(result.IndirectDeps) != 0 {
+		t.Errorf("Expected 0 indirect deps (no lockfile), got %d", len(result.IndirectDeps))
+	}
+
+	// express 和 lodash 应该被使用
+	if usage, ok := result.UsageDetails["express"]; ok {
+		if !usage.Used {
+			t.Error("express should be used")
+		}
+	} else {
+		t.Error("express not found")
+	}
+
+	if usage, ok := result.UsageDetails["lodash"]; ok {
+		if !usage.Used {
+			t.Error("lodash should be used")
+		}
+	} else {
+		t.Error("lodash not found")
+	}
+}
+
+// TestIntegration_ConfigIgnoreTest 测试配置忽略功能
+func TestIntegration_ConfigIgnoreTest(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "config-ignore-test")
+	helpers.AssertScanResult(t, result, "npm")
+
+	// 配置文件忽略了 moment、chalk 和 typescript
+	// 应该只有 express、lodash 和 jest 被分析
+	if result.TotalDeps != 3 {
+		t.Errorf("Expected 3 total deps (after ignore filter), got %d", result.TotalDeps)
+	}
+
+	// 验证被忽略的依赖不在结果中
+	ignoredDeps := []string{"moment", "chalk", "typescript"}
+	for _, dep := range ignoredDeps {
+		if _, ok := result.UsageDetails[dep]; ok {
+			t.Errorf("%s should be ignored and not in results", dep)
+		}
+	}
+
+	// 验证未被忽略的依赖在结果中
+	if _, ok := result.UsageDetails["express"]; !ok {
+		t.Error("express should be in results")
+	}
+	if _, ok := result.UsageDetails["lodash"]; !ok {
+		t.Error("lodash should be in results")
+	}
+	if _, ok := result.UsageDetails["jest"]; !ok {
+		t.Error("jest should be in results")
+	}
+}
+
+// TestIntegration_TypePackagesExtended 测试扩展类型包场景
+func TestIntegration_TypePackagesExtended(t *testing.T) {
+	t.Parallel()
+	result := helpers.ScanTestdata(t, "type-packages-extended")
+
+	// @types/* 包应该被单独统计
+	if result.TypePackages != 6 {
+		t.Errorf("Expected 6 type packages, got %d", result.TypePackages)
+	}
+
+	// @types/* 不应该出现在 runtime dependencies 统计中
+	// typescript 和 jest 不是 @types/* 所以算在 runtime deps 中
+	// 4 runtime deps + typescript + jest = 6
+	if result.TotalDeps != 6 {
+		t.Errorf("Expected 6 runtime deps (4 runtime + typescript + jest), got %d", result.TotalDeps)
+	}
+
+	// 验证 TypePkgNames 列表
+	if len(result.TypePkgNames) != 6 {
+		t.Errorf("Expected 6 type package names, got %d", len(result.TypePkgNames))
+	}
+
+	// 验证具体的类型包
+	expectedTypePkgs := []string{
+		"@types/node",
+		"@types/express",
+		"@types/react",
+		"@types/react-dom",
+		"@types/axios",
+		"@types/jest",
+	}
+	for _, pkg := range expectedTypePkgs {
+		found := false
+		for _, typePkg := range result.TypePkgNames {
+			if typePkg == pkg {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected type package '%s' not found in TypePkgNames", pkg)
+		}
+	}
+}
+
+// TestIntegration_SurfaceWithIndirect 测试 surface 命令的间接依赖分析
+func TestIntegration_SurfaceWithIndirect(t *testing.T) {
+	t.Parallel()
+	testdataDir := filepath.Join("..", "testdata", "indirect-deps-test")
+	if _, err := os.Stat(testdataDir); os.IsNotExist(err) {
+		t.Skipf("testdata not found: %s", testdataDir)
+	}
+
+	// 获取依赖列表
+	m, err := analyzer.DetectManifest(testdataDir)
+	if err != nil {
+		t.Fatalf("DetectManifest failed: %v", err)
+	}
+
+	deps, err := m.Dependencies()
+	if err != nil {
+		t.Fatalf("Dependencies failed: %v", err)
+	}
+
+	// 分析影响面
+	opts := &surface.Options{
+		ManifestType:    "npm",
+		ExcludeDirs:     []string{"node_modules"},
+		ExcludeFiles:    []string{},
+		ReadNodeModules: false,
+	}
+
+	results, err := surface.AnalyzeSurface(testdataDir, deps, opts)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	// 验证结果
+	if len(results) != 2 {
+		t.Errorf("Expected 2 surface results, got %d", len(results))
+	}
+
+	// 验证 axios 的影响面
+	if axiosResult, ok := results["axios"]; ok {
+		if len(axiosResult.Files) == 0 {
+			t.Error("axios should be used in at least 1 file")
+		}
+		if axiosResult.RefCount == 0 {
+			t.Error("axios should have at least 1 reference")
+		}
+		if axiosResult.Criticality == "" {
+			t.Error("axios should have a criticality level")
+		}
+	} else {
+		t.Error("axios not found in surface results")
+	}
+}
+
+// TestIntegration_MultiFileSurface 测试多文件影响面分析
+func TestIntegration_MultiFileSurface(t *testing.T) {
+	t.Parallel()
+	testdataDir := filepath.Join("..", "testdata", "dev-deps-surface")
+	if _, err := os.Stat(testdataDir); os.IsNotExist(err) {
+		t.Skipf("testdata not found: %s", testdataDir)
+	}
+
+	// 获取依赖列表
+	m, err := analyzer.DetectManifest(testdataDir)
+	if err != nil {
+		t.Fatalf("DetectManifest failed: %v", err)
+	}
+
+	deps, err := m.Dependencies()
+	if err != nil {
+		t.Fatalf("Dependencies failed: %v", err)
+	}
+
+	// 分析影响面
+	opts := &surface.Options{
+		ManifestType:    "npm",
+		ExcludeDirs:     []string{"node_modules"},
+		ExcludeFiles:    []string{},
+		ReadNodeModules: false,
+	}
+
+	results, err := surface.AnalyzeSurface(testdataDir, deps, opts)
+	if err != nil {
+		t.Fatalf("AnalyzeSurface failed: %v", err)
+	}
+
+	// 验证 lodash 在多个文件中被使用
+	if lodashResult, ok := results["lodash"]; ok {
+		if len(lodashResult.Files) < 2 {
+			t.Errorf("Expected lodash to be used in at least 2 files, got %d", len(lodashResult.Files))
+		}
+		if lodashResult.RefCount < 2 {
+			t.Errorf("Expected lodash to have at least 2 references, got %d", lodashResult.RefCount)
+		}
+	} else {
+		t.Error("lodash not found in surface results")
 	}
 }

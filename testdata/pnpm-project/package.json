@@ -1,0 +1,13 @@
+{
+  "name": "test-pnpm-project",
+  "version": "1.0.0",
+  "dependencies": {
+    "fastify": "^4.0.0",
+    "zod": "^3.21.0",
+    "pino": "^8.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^0.34.0",
+    "tsx": "^3.12.0"
+  }
+}

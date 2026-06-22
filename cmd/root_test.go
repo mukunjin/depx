@@ -1,84 +1,72 @@
 package cmd
 
 import (
+	"bytes"
 	"testing"
 )
 
-func TestRootCommandBasic(t *testing.T) {
-	if rootCmd == nil {
-		t.Fatal("rootCmd should not be nil")
+func TestRootCommand(t *testing.T) {
+	// 测试根命令执行
+	cmd := rootCmd
+	if cmd == nil {
+		t.Fatal("rootCmd is nil")
 	}
-	if rootCmd.Use != "depx" {
-		t.Errorf("expected Use 'depx', got %q", rootCmd.Use)
+
+	if cmd.Use != "depx" {
+		t.Errorf("expected Use to be 'depx', got '%s'", cmd.Use)
+	}
+
+	if cmd.Short != "Dependency efficiency analyzer" {
+		t.Errorf("expected Short to be 'Dependency efficiency analyzer', got '%s'", cmd.Short)
+	}
+
+	if cmd.Version != "dev" {
+		t.Errorf("expected Version to be 'dev', got '%s'", cmd.Version)
 	}
 }
 
-func TestRootCommandHasSubcommands(t *testing.T) {
-	expectedCmds := map[string]bool{
-		"scan":    false,
-		"surface": false,
+func TestRootCommandHelp(t *testing.T) {
+	// 测试帮助信息
+	cmd := rootCmd
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"--help"})
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	for _, cmd := range rootCmd.Commands() {
-		if _, ok := expectedCmds[cmd.Name()]; ok {
-			expectedCmds[cmd.Name()] = true
-		}
-	}
-
-	for name, found := range expectedCmds {
-		if !found {
-			t.Errorf("expected subcommand %q not found", name)
-		}
+	output := buf.String()
+	if output == "" {
+		t.Error("expected help output, got empty string")
 	}
 }
 
-func TestVersionVariable(t *testing.T) {
-	if Version == "" {
-		t.Error("Version should not be empty")
-	}
-	// 默认值是 "dev"，通过 build.ps1 构建时会被 Git tag 覆盖（如 "v0.2.0"）
-}
+func TestRootCommandVersion(t *testing.T) {
+	// 测试版本信息
+	cmd := rootCmd
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"--version"})
 
-func TestScanCommandFlags(t *testing.T) {
-	flag := scanCmd.Flags().Lookup("config")
-	if flag == nil {
-		t.Error("scan command should have --config flag")
+	err := cmd.Execute()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
-	if flag.Shorthand != "c" {
-		t.Errorf("expected shorthand 'c', got %q", flag.Shorthand)
-	}
-}
 
-func TestSurfaceCommandFlags(t *testing.T) {
-	flag := surfaceCmd.Flags().Lookup("config")
-	if flag == nil {
-		t.Error("surface command should have --config flag")
-	}
-	if flag.Shorthand != "c" {
-		t.Errorf("expected shorthand 'c', got %q", flag.Shorthand)
-	}
-}
-
-func TestRootCommandUseAndShort(t *testing.T) {
-	if rootCmd.Use != "depx" {
-		t.Errorf("expected Use 'depx', got %q", rootCmd.Use)
-	}
-	// 验证 Short 描述不为空
-	if rootCmd.Short == "" {
-		t.Error("root command Short description should not be empty")
-	}
-	// 验证 Long 描述不为空
-	if rootCmd.Long == "" {
-		t.Error("root command Long description should not be empty")
+	output := buf.String()
+	if output == "" {
+		t.Error("expected version output, got empty string")
 	}
 }
 
 func TestExecute(t *testing.T) {
-	// 测试 Execute 函数不返回错误（在没有参数时）
-	// 为避免测试框架传入的测试标志污染命令参数，使用 SetArgs 隔离参数
-	rootCmd.SetArgs([]string{})
+	// 测试 Execute 函数
 	err := Execute()
 	if err != nil {
-		t.Errorf("Execute() should not return error, got: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 }

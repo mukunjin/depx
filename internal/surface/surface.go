@@ -16,10 +16,22 @@ type SurfaceResult struct {
 	Files       []string            // 使用该包的文件列表
 	Modules     []string            // 使用的子模块/子路径列表
 	RefCount    int                 // 总引用次数
+	Score       int                 // 影响面分数 (RefCount*5 + Modules)
 	Criticality string              // 关键度：High/Medium/Low
 	fileSet     map[string]struct{} // 用于文件去重
 	moduleSet   map[string]struct{} // 用于模块去重
 }
+
+// CalculateScore 计算影响面分数
+func (r *SurfaceResult) CalculateScore() {
+	r.Score = r.RefCount*5 + len(r.Modules)
+}
+
+// 百分位关键度阈值
+const (
+	highCriticalityThreshold   = 0.2 // Top 20% = High
+	mediumCriticalityThreshold = 0.5 // Top 50% = Medium
+)
 
 // 语言类型
 type langType int
@@ -30,6 +42,9 @@ const (
 	langRust
 	langPython
 )
+
+// typesPrefix 是 TypeScript 类型包的统一前缀
+const typesPrefix = "@types/"
 
 // 正则表达式匹配 import 语句
 var (
@@ -57,12 +72,31 @@ var supportedExts = map[string]langType{
 
 // Options 定义影响面分析选项
 type Options struct {
+	// ManifestType 项目类型 ("npm", "go", "cargo", "pip")
+	ManifestType string
 	// ExcludeDirs 排除的目录
 	ExcludeDirs []string
 	// ExcludeFiles 排除的文件模式
 	ExcludeFiles []string
 	// ReadNodeModules 是否读取 node_modules
 	ReadNodeModules bool
+}
+
+var manifestExts = map[string]map[string]langType{
+	"npm": {
+		".js": langJS, ".ts": langJS, ".jsx": langJS, ".tsx": langJS,
+		".mjs": langJS, ".cjs": langJS, ".vue": langJS, ".svelte": langJS,
+	},
+	"go":    {".go": langGo},
+	"cargo": {".rs": langRust},
+	"pip":   {".py": langPython},
+}
+
+var defaultSkipDirs = map[string][]string{
+	"npm":   {"node_modules", "dist", "build", ".next", ".nuxt", "coverage"},
+	"go":    {"vendor"},
+	"cargo": {"target"},
+	"pip":   {"__pycache__", ".venv", "venv"},
 }
 
 // AnalyzeSurface 分析依赖的影响面
@@ -89,13 +123,22 @@ func AnalyzeSurface(dir string, deps []string, opts *Options) (map[string]*Surfa
 
 	// 构建跳过目录集合
 	skipDirs := make(map[string]bool)
-	if opts != nil && !opts.ReadNodeModules {
-		skipDirs["node_modules"] = true
-	}
-	// 使用配置中的 ExcludeDirs，不再硬编码 vendor
 	if opts != nil {
+		if !opts.ReadNodeModules {
+			skipDirs["node_modules"] = true
+		}
+		for _, d := range defaultSkipDirs[opts.ManifestType] {
+			skipDirs[d] = true
+		}
 		for _, d := range opts.ExcludeDirs {
 			skipDirs[d] = true
+		}
+	}
+
+	allowedExts := supportedExts
+	if opts != nil && opts.ManifestType != "" {
+		if exts, ok := manifestExts[opts.ManifestType]; ok {
+			allowedExts = exts
 		}
 	}
 
@@ -121,7 +164,7 @@ func AnalyzeSurface(dir string, deps []string, opts *Options) (map[string]*Surfa
 
 		// 检查文件扩展名
 		ext := strings.ToLower(filepath.Ext(info.Name()))
-		lang, supported := supportedExts[ext]
+		lang, supported := allowedExts[ext]
 		if !supported {
 			return nil
 		}
@@ -166,9 +209,30 @@ func AnalyzeSurface(dir string, deps []string, opts *Options) (map[string]*Surfa
 		return nil, err
 	}
 
-	// 计算关键度并排序
+	// 计算分数并收集所有结果
+	var allResults []*SurfaceResult
 	for _, result := range results {
-		result.Criticality = calculateCriticality(result)
+		result.CalculateScore()
+		allResults = append(allResults, result)
+	}
+
+	// 按分数排序用于计算百分位
+	sort.Slice(allResults, func(i, j int) bool {
+		return allResults[i].Score > allResults[j].Score
+	})
+
+	// 根据百分位计算关键度
+	totalCount := len(allResults)
+	for i, result := range allResults {
+		percentile := float64(i) / float64(totalCount)
+		if percentile < highCriticalityThreshold {
+			result.Criticality = "High"
+		} else if percentile < mediumCriticalityThreshold {
+			result.Criticality = "Medium"
+		} else {
+			result.Criticality = "Low"
+		}
+
 		sort.Strings(result.Files)
 		sort.Strings(result.Modules)
 	}
@@ -735,22 +799,4 @@ func removePythonComments(content string) string {
 func resolvePythonPackageName(importPath string) string {
 	parts := strings.Split(importPath, ".")
 	return parts[0]
-}
-
-// calculateCriticality 计算依赖的关键度
-func calculateCriticality(result *SurfaceResult) string {
-	fileCount := len(result.Files)
-	refCount := result.RefCount
-
-	// 关键度评分标准：
-	// High: 10+ 文件 或 50+ 引用
-	// Medium: 3-9 文件 或 10-49 引用
-	// Low: 1-2 文件 或 1-9 引用
-
-	if fileCount >= 10 || refCount >= 50 {
-		return "High"
-	} else if fileCount >= 3 || refCount >= 10 {
-		return "Medium"
-	}
-	return "Low"
 }

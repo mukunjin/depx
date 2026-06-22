@@ -83,7 +83,7 @@ func TestRunScan(t *testing.T) {
 				}
 			}
 
-			err := runScan(tt.path, tt.configPath, false)
+			err := runScan(tt.path, tt.configPath, false, false, false)
 			if tt.expectError {
 				if err == nil {
 					t.Error("expected error, got nil")
@@ -204,7 +204,7 @@ func TestRunScanWithInvalidConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath, false)
+	err := runScan(".", configPath, false, false, false)
 	if err == nil {
 		t.Error("expected error for invalid config, got nil")
 	}
@@ -232,7 +232,7 @@ func TestRunScanWithEmptyConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath, false)
+	err := runScan(".", configPath, false, false, false)
 	if err != nil {
 		t.Errorf("unexpected error for empty config: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestRunScanWithExcludeDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath, false)
+	err := runScan(".", configPath, false, false, false)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -291,8 +291,74 @@ func TestRunScanWithLockFileDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runScan(".", configPath, false)
+	err := runScan(".", configPath, false, false, false)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestRunScanWithIndirectFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// 创建 package.json
+	pkgContent := `{"name": "test", "dependencies": {"lodash": "^4.17.21"}}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 测试 showIndirect 参数
+	err := runScan(".", "", true, false, false)
+	if err != nil {
+		t.Errorf("unexpected error with showIndirect: %v", err)
+	}
+}
+
+func TestRunScanWithTypePkgsFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// 创建 package.json，包含类型包
+	pkgContent := `{"name": "test", "dependencies": {"@types/node": "^18.0.0", "lodash": "^4.17.21"}}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 测试 showTypePkgs 参数
+	err := runScan(".", "", false, false, true)
+	if err != nil {
+		t.Errorf("unexpected error with showTypePkgs: %v", err)
+	}
+}
+
+func TestRunScanWithBothFlags(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	// 创建 package.json，包含类型包
+	pkgContent := `{"name": "test", "dependencies": {"@types/node": "^18.0.0", "lodash": "^4.17.21"}}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 测试同时使用 showIndirect 和 showTypePkgs
+	err := runScan(".", "", true, false, true)
+	if err != nil {
+		t.Errorf("unexpected error with both flags: %v", err)
 	}
 }

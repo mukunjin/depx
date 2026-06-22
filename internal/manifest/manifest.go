@@ -4,8 +4,10 @@ package manifest
 type Manifest interface {
 	// Type 返回包管理器类型 ("npm", "go", "cargo", "pip")
 	Type() string
-	// Dependencies 返回声明的依赖包名列表
+	// Dependencies 返回声明的运行时依赖包名列表
 	Dependencies() ([]string, error)
+	// DevDependencies 返回声明的开发时依赖包名列表（如果支持）
+	DevDependencies() ([]string, error)
 }
 
 // UsageResult 表示依赖的使用情况

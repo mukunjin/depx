@@ -425,6 +425,123 @@ const 数据 = axios.get('/api');
 	}
 }
 
+// TestBoundary_NilOptions 测试 nil options
+func TestBoundary_NilOptions(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+
+	jsCode := "import axios from 'axios';\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(jsCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 测试所有分析器都能处理 nil options
+	analyzers := []struct {
+		name     string
+		analyzer Analyzer
+		deps     []string
+	}{
+		{"JS", NewJSAnalyzer(), []string{"axios"}},
+		{"Go", NewGoAnalyzer(), []string{"github.com/gin-gonic/gin"}},
+		{"Python", NewPythonAnalyzer(), []string{"requests"}},
+		{"Rust", NewRustAnalyzer(), []string{"serde"}},
+	}
+
+	for _, tt := range analyzers {
+		t.Run(tt.name, func(t *testing.T) {
+			results, err := tt.analyzer.Analyze(tmpDir, tt.deps, nil)
+			if err != nil {
+				t.Fatalf("Analyzer %s failed with nil options: %v", tt.name, err)
+			}
+			if len(results) != len(tt.deps) {
+				t.Errorf("Expected %d results, got %d", len(tt.deps), len(results))
+			}
+		})
+	}
+}
+
+// TestBoundary_OptionsWithEmptySlices 测试空切片选项
+func TestBoundary_OptionsWithEmptySlices(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+
+	jsCode := "import axios from 'axios';\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(jsCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := &Options{
+		ExcludeDirs:     []string{},
+		ExcludeFiles:    []string{},
+		ReadNodeModules: false,
+	}
+
+	analyzer := NewJSAnalyzer()
+	results, err := analyzer.Analyze(tmpDir, []string{"axios"}, opts)
+	if err != nil {
+		t.Fatalf("Failed with empty slice options: %v", err)
+	}
+
+	if !results["axios"].Used {
+		t.Error("Should detect axios with empty slice options")
+	}
+}
+
+// TestBoundary_MultipleAnalyzersOnSameDir 测试多个分析器扫描同一目录
+func TestBoundary_MultipleAnalyzersOnSameDir(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+
+	// 创建多种语言的文件
+	jsCode := "import axios from 'axios';\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(jsCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	goCode := `package main
+import "github.com/gin-gonic/gin"
+func main() {}
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), []byte(goCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pyCode := "import requests\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "app.py"), []byte(pyCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rsCode := "use serde;\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "lib.rs"), []byte(rsCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 每个分析器应该只检测自己语言的文件
+	jsAnalyzer := NewJSAnalyzer()
+	jsResults, err := jsAnalyzer.Analyze(tmpDir, []string{"axios", "github.com/gin-gonic/gin"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !jsResults["axios"].Used {
+		t.Error("JS analyzer should detect axios")
+	}
+	if jsResults["github.com/gin-gonic/gin"].Used {
+		t.Error("JS analyzer should not detect Go imports")
+	}
+
+	goAnalyzer := NewGoAnalyzer()
+	goResults, err := goAnalyzer.Analyze(tmpDir, []string{"github.com/gin-gonic/gin", "axios"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !goResults["github.com/gin-gonic/gin"].Used {
+		t.Error("Go analyzer should detect gin")
+	}
+	if goResults["axios"].Used {
+		t.Error("Go analyzer should not detect JS imports")
+	}
+}
+
 // TestUsageResult_Fields 测试 UsageResult 字段完整性
 func TestUsageResult_Fields(t *testing.T) {
 	t.Parallel()

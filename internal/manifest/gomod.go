@@ -84,6 +84,11 @@ func (g *GoModManifest) Dependencies() ([]string, error) {
 	return deps, scanner.Err()
 }
 
+// DevDependencies 对于 go.mod 返回空（Go 没有单独的 devDependencies）
+func (g *GoModManifest) DevDependencies() ([]string, error) {
+	return []string{}, nil
+}
+
 // isDirectDep 检查是否是直接依赖（非 indirect）
 func isDirectDep(line string) bool {
 	return !strings.Contains(line, "// indirect")

@@ -39,6 +39,11 @@ func (m *PipManifest) Dependencies() ([]string, error) {
 	return m.deps, nil
 }
 
+// DevDependencies 对于 requirements.txt 返回空
+func (m *PipManifest) DevDependencies() ([]string, error) {
+	return []string{}, nil
+}
+
 // parse 解析 requirements.txt 文件
 func (m *PipManifest) parse() error {
 	reqPath := filepath.Join(m.dir, "requirements.txt")

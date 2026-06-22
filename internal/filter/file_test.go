@@ -103,10 +103,10 @@ func TestShouldExcludeFile(t *testing.T) {
 
 func TestShouldExcludeDir(t *testing.T) {
 	tests := []struct {
-		name         string
-		dir          string
-		excludeDirs  []string
-		want         bool
+		name        string
+		dir         string
+		excludeDirs []string
+		want        bool
 	}{
 		{
 			name:        "空目录名",

@@ -412,6 +412,151 @@ func TestScanWithConfig_ReadNodeModules(t *testing.T) {
 	}
 }
 
+func TestScan_NonExistentDir(t *testing.T) {
+	t.Parallel()
+	_, err := Scan("/non/existent/directory/that/does/not/exist")
+	if err == nil {
+		t.Error("Expected error for non-existent directory")
+	}
+}
+
+func TestDetectManifest_NoSupportedProject(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	_, err := DetectManifest(tmpDir)
+	if err == nil {
+		t.Error("Expected error when no supported project found")
+	}
+}
+
+func TestDetectManifest_Priority(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+
+	// 同时创建 package.json 和 go.mod，npm 应该优先
+	pkgJSON := `{"name": "test", "dependencies": {"lodash": "^4.0.0"}}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	goMod := `module example.com/test
+
+go 1.21
+
+require github.com/gin-gonic/gin v1.9.1
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := DetectManifest(tmpDir)
+	if err != nil {
+		t.Fatalf("DetectManifest failed: %v", err)
+	}
+	if m.Type() != "npm" {
+		t.Errorf("Expected npm to have priority, got '%s'", m.Type())
+	}
+}
+
+func TestScanWithConfig_NilConfig(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+
+	// 创建有效项目
+	pkgJSON := `{"name": "test", "dependencies": {"axios": "^1.0.0"}}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	jsCode := `import axios from 'axios';`
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(jsCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// nil config 应该使用默认配置（FindAndLoad）
+	result, err := ScanWithConfig(tmpDir, nil)
+	if err != nil {
+		t.Fatalf("ScanWithConfig with nil config failed: %v", err)
+	}
+	if result.TotalDeps != 1 {
+		t.Errorf("Expected 1 total dep, got %d", result.TotalDeps)
+	}
+}
+
+func TestScanWithConfig_IgnoreMultiple(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+
+	pkgJSON := `{
+		"name": "test",
+		"dependencies": {
+			"axios": "^1.0.0",
+			"lodash": "^4.0.0",
+			"moment": "^2.0.0"
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	jsCode := `import axios from 'axios';`
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(jsCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Ignore:  []string{"lodash", "moment"},
+		LockFile: false,
+	}
+	result, err := ScanWithConfig(tmpDir, cfg)
+	if err != nil {
+		t.Fatalf("ScanWithConfig failed: %v", err)
+	}
+	// lodash 和 moment 被忽略，只剩 axios
+	if result.TotalDeps != 1 {
+		t.Errorf("Expected 1 total dep (excluding ignored), got %d", result.TotalDeps)
+	}
+	if _, exists := result.UsageDetails["lodash"]; exists {
+		t.Error("lodash should be ignored")
+	}
+	if _, exists := result.UsageDetails["moment"]; exists {
+		t.Error("moment should be ignored")
+	}
+}
+
+func TestScan_TypePackagesSeparateCount(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+
+	pkgJSON := `{
+		"name": "test",
+		"dependencies": {
+			"axios": "^1.0.0",
+			"@types/node": "^18.0.0",
+			"@types/lodash": "^4.0.0"
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(pkgJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	jsCode := `import axios from 'axios';`
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.js"), []byte(jsCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Scan(tmpDir)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+	// @types/ 包不计入 TotalDeps
+	if result.TotalDeps != 1 {
+		t.Errorf("Expected 1 total dep (excluding @types/), got %d", result.TotalDeps)
+	}
+	if result.TypePackages != 2 {
+		t.Errorf("Expected 2 type packages, got %d", result.TypePackages)
+	}
+	if len(result.TypePkgNames) != 2 {
+		t.Errorf("Expected 2 type pkg names, got %d", len(result.TypePkgNames))
+	}
+}
+
 func TestScanWithConfig_LockFile(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()

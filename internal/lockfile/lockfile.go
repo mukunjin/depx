@@ -24,11 +24,8 @@ type Dependency struct {
 	Requires []string // 依赖的其他包
 }
 
-// extractPackageName 从 npm lockfile packages 路径中提取包名
-// 例如: "node_modules/foo" -> "foo"
-// 例如: "node_modules/@scope/pkg" -> "@scope/pkg"
-// 例如: "node_modules/foo/node_modules/bar" -> "bar"
-func extractPackagePath(name string) string {
+// ExtractPackagePath 从 npm lockfile packages 路径中提取包名
+func ExtractPackagePath(name string) string {
 	// 找到最后一个 "node_modules/" 的位置
 	idx := strings.LastIndex(name, "node_modules/")
 	if idx == -1 {
@@ -119,7 +116,7 @@ func (lf *NpmLockFile) Dependencies() ([]Dependency, error) {
 			// 提取包名：处理嵌套 node_modules 情况
 			// 例如 "node_modules/foo/node_modules/bar" -> "bar"
 			// 例如 "node_modules/@scope/pkg" -> "@scope/pkg"
-			cleanName := extractPackagePath(name)
+			cleanName := ExtractPackagePath(name)
 
 			// 去重：嵌套路径可能导致同一包名出现多次
 			if seen[cleanName] {
@@ -151,6 +148,81 @@ func (lf *NpmLockFile) Dependencies() ([]Dependency, error) {
 	}
 
 	return deps, nil
+}
+
+// Data 返回解析得到的原始 lock 数据（供调用方查询依赖图）
+func (lf *NpmLockFile) Data() *npmLockData {
+	return lf.data
+}
+
+// RequiresGraph 返回 npm 依赖图：包名 -> 直接依赖列表
+func (lf *NpmLockFile) RequiresGraph() map[string][]string {
+	requiresMap := make(map[string][]string)
+
+	if lf.data.Packages != nil && len(lf.data.Packages) > 0 {
+		for key, pkg := range lf.data.Packages {
+			if key == "" {
+				continue
+			}
+			name := ExtractPackagePath(key)
+			reqs := make([]string, 0, len(pkg.Dependencies))
+			for req := range pkg.Dependencies {
+				reqs = append(reqs, req)
+			}
+			requiresMap[name] = reqs
+		}
+		return requiresMap
+	}
+
+	if lf.data.Dependencies != nil {
+		var walk func(name string, pkg npmLockPackage)
+		walk = func(name string, pkg npmLockPackage) {
+			reqs := make([]string, 0, len(pkg.Dependencies))
+			for req := range pkg.Dependencies {
+				reqs = append(reqs, req)
+			}
+			requiresMap[name] = reqs
+		}
+		for name, pkg := range lf.data.Dependencies {
+			walk(name, pkg)
+		}
+	}
+
+	return requiresMap
+}
+
+// SharedIndirectCounts 计算每个间接依赖被多少个 direct package 引用
+func (lf *NpmLockFile) SharedIndirectCounts(directDeps []string) map[string]int {
+	requiresMap := lf.RequiresGraph()
+	if len(requiresMap) == 0 {
+		return nil
+	}
+
+	reachMap := make(map[string]map[string]struct{})
+	for _, direct := range directDeps {
+		visited := make(map[string]struct{})
+		var dfs func(string)
+		dfs = func(n string) {
+			for _, r := range requiresMap[n] {
+				if _, ok := visited[r]; ok {
+					continue
+				}
+				visited[r] = struct{}{}
+				if reachMap[r] == nil {
+					reachMap[r] = make(map[string]struct{})
+				}
+				reachMap[r][direct] = struct{}{}
+				dfs(r)
+			}
+		}
+		dfs(direct)
+	}
+
+	parentCounts := make(map[string]int, len(reachMap))
+	for target, set := range reachMap {
+		parentCounts[target] = len(set)
+	}
+	return parentCounts
 }
 
 // GoLockFile 解析 go.sum

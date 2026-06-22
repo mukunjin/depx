@@ -10,8 +10,9 @@ import (
 
 // CargoManifest 解析 Cargo.toml 文件
 type CargoManifest struct {
-	dir  string
-	deps []string
+	dir     string
+	deps    []string
+	devDeps []string
 }
 
 // NewCargoManifest 创建 Cargo.toml 清单解析器
@@ -34,9 +35,14 @@ func (m *CargoManifest) Type() string {
 	return "cargo"
 }
 
-// Dependencies 返回声明的依赖包名列表
+// Dependencies 返回声明的运行时依赖包名列表
 func (m *CargoManifest) Dependencies() ([]string, error) {
-	return m.deps, nil
+	return append([]string(nil), m.deps...), nil
+}
+
+// DevDependencies 返回 dev-dependencies 列表
+func (m *CargoManifest) DevDependencies() ([]string, error) {
+	return m.devDeps, nil
 }
 
 // parse 解析 Cargo.toml 文件
@@ -49,8 +55,10 @@ func (m *CargoManifest) parse() error {
 	defer file.Close()
 
 	m.deps = []string{}
+	m.devDeps = []string{}
 	scanner := bufio.NewScanner(file)
 	inDeps := false
+	inDevDeps := false
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -61,8 +69,20 @@ func (m *CargoManifest) parse() error {
 		}
 
 		// 检测 [dependencies]、[dev-dependencies]、[build-dependencies] 段
-		if line == "[dependencies]" || line == "[dev-dependencies]" || line == "[build-dependencies]" {
+		if line == "[dependencies]" {
 			inDeps = true
+			inDevDeps = false
+			continue
+		}
+		if line == "[dev-dependencies]" {
+			inDevDeps = true
+			inDeps = false
+			continue
+		}
+		if line == "[build-dependencies]" {
+			// treat build-dependencies as dev deps
+			inDevDeps = true
+			inDeps = false
 			continue
 		}
 
@@ -73,12 +93,16 @@ func (m *CargoManifest) parse() error {
 		}
 
 		// 在依赖段内提取依赖
-		if inDeps {
+		if inDeps || inDevDeps {
 			// 解析依赖行：name = "version" 或 name = { version = "x", ... }
 			if idx := strings.Index(line, "="); idx > 0 {
 				name := strings.TrimSpace(line[:idx])
 				if name != "" {
-					m.deps = append(m.deps, name)
+					if inDevDeps {
+						m.devDeps = append(m.devDeps, name)
+					} else {
+						m.deps = append(m.deps, name)
+					}
 				}
 			}
 		}

@@ -3,7 +3,7 @@
 [![Go 版本](https://img.shields.io/badge/Go-1.26.4-00ADD8?style=flat-square&logo=go)](https://golang.org)
 [![许可证](https://img.shields.io/badge/License-GPLv3-blue?style=flat-square)](./LICENSE)
 
-依赖分析工具 - 检测项目中未使用的依赖，分析依赖影响面。
+面向现代项目的依赖分析工具 — 检测未使用依赖，评估 runtime 依赖影响面。
 
 **English Documentation**: [README.md](README.md)
 
@@ -11,10 +11,10 @@
 
 ## 功能
 
-- **未使用检测** — 扫描项目依赖声明文件，检测未使用的依赖
-- **影响面分析** — 分析依赖在项目中的使用广度，评估关键度
-- **Lock File 分析** — 解析 Lock File 获取准确的依赖版本并检测间接依赖
-- **配置支持** — 通过 `.depx.yml` 自定义忽略规则、排除目录
+- **未使用检测** — 扫描清单文件，对比源码 import 判断依赖是否被使用
+- **影响面分析** — 衡量 runtime 依赖的使用广度（文件数、模块数、引用次数、关键度）
+- **Lock File 分析** — 解析 lock 文件，展示传递依赖信息
+- **配置支持** — 通过 `.depx.yml` 自定义忽略规则和排除目录
 
 ## 支持范围
 
@@ -25,29 +25,34 @@
 | Rust | Cargo.toml | Cargo.lock | .rs |
 | Python | requirements.txt | — | .py |
 
-## 安装
+**暂不支持：** `yarn.lock`、`pnpm-lock.yaml`、`pyproject.toml`、`Pipfile`、npm/pnpm/yarn workspaces 子包清单（仅分析根目录 manifest）。
 
-### 首次设置（仅 Windows）
+## 快速开始
 
-Windows 默认禁止运行 PowerShell 脚本。请以**管理员身份**运行 PowerShell 并执行：
+```bash
+git clone https://github.com/mukunjin/depx.git
+cd depx
+go build .
+depx scan
+depx surface
+```
+
+## 安装（Windows）
+
+### 首次设置
+
+Windows 默认禁止运行 PowerShell 脚本。请以**管理员身份**运行 PowerShell：
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-输入 `Y` 确认。此设置永久生效。
-
-### 安装 depx
+### 通过脚本安装
 
 ```powershell
-# 克隆仓库
 git clone https://github.com/mukunjin/depx.git
 cd depx
-
-# 构建（自动从 Git tag 获取版本）
 .\build.ps1
-
-# 安装
 .\install.ps1
 ```
 
@@ -57,63 +62,52 @@ cd depx
 .\install.ps1 -Uninstall
 ```
 
-脚本会自动完成：
+安装脚本会：
 - 将 `depx.exe` 复制到 `%LOCALAPPDATA%\depx`
 - 添加到用户 PATH
-- 提示重启终端使配置生效
+- 通过 `depx --version` 验证安装
 
 ### 版本管理
-
-版本号由以下位置控制：
 
 | 位置 | 作用 | 生效时机 |
 |------|------|----------|
 | Git tag | 主要来源 | 通过 `.\build.ps1` 构建时 |
-| `cmd/root.go` 第 8 行 | 回退值（`dev`） | 直接运行 `go build` 且不使用 `-ldflags` 时 |
+| `cmd/root.go` 第 8 行 | 回退值（`dev`） | 直接 `go build` 且不使用 `-ldflags` 时 |
 | `build.ps1` | 读取 git tag，通过 `-ldflags` 注入 | 每次运行 `.\build.ps1` 时 |
-| `install.ps1` 第 139 行 | 从二进制读取版本（`depx --version`） | 安装验证时 |
+| `install.ps1` 第 140 行 | 从二进制读取版本 | 安装验证时 |
 
-**工作原理：**
-1. `build.ps1` 运行 `git describe --tags --abbrev=0` 获取最新的 Git tag
-2. tag 通过 `-ldflags="-X github.com/mukunjin/depx/cmd.Version=<tag>"` 注入到二进制
-3. `cmd/root.go` 提供回退值（`dev`），当不使用 `-ldflags` 时生效
-4. `install.ps1` 通过读取版本验证安装的二进制
-
-**如何发布新版本：**
-1. 创建 Git tag：`git tag v0.3.0`
-2. 推送 tag：`git push origin v0.3.0`
-3. 运行 `.\build.ps1` 构建新版本
-4. 运行 `.\install.ps1` 安装
-
-**查看当前版本：**
-```powershell
-depx --version
-```
+**发布新版本：**
+1. `git tag v0.3.0`
+2. `git push origin v0.3.0`
+3. `.\build.ps1`
+4. `.\install.ps1`
 
 ## 使用方法
 
-### 扫描
+### `scan` vs `surface`
+
+| | `depx scan` | `depx surface` |
+|---|-------------|----------------|
+| **用途** | 查找未使用依赖 | 衡量依赖的使用广度 |
+| **范围** | `dependencies` + `devDependencies` | 仅 `dependencies`（用 `--dev` 包含 dev） |
+| **输出** | Runtime / Tool / Unused 列表 | 文件数、模块数、引用次数、关键度 |
+| **间接依赖** | `--indirect` 显示摘要，`--indirect-all` 显示全部 | `--indirect` 显示共享传递依赖摘要 |
+| **类型包** | 单独统计 `@types/*` | 完全排除 |
+
+### Scan
 
 ```bash
-# 扫描当前目录
 depx scan
-
-# 扫描指定目录
-depx scan C:\path\to\project
-
-# 使用自定义配置扫描
-depx scan --config C:\path\to\.depx.yml
-
-# 显示间接依赖详情（默认只显示数量）
-depx scan --indirect
+depx scan /path/to/project
+depx scan --config /path/to/.depx.yml
+depx scan --indirect    # 显示间接依赖摘要（总数 + Top Shared）
 depx scan -i
-
-# 显示帮助
-depx --help
-
-# 显示版本
-depx --version
+depx scan --indirect-all  # 显示所有间接依赖
+depx scan --types       # 显示 @types/* 包
+depx scan -t
 ```
+
+`scan` 同时检查 **`dependencies` 和 `devDependencies`** 在源代码中的使用情况。
 
 输出示例：
 
@@ -125,38 +119,142 @@ depx --version
   Dependencies:    12
   Used:            7
   Unused:          5
+  Type Packages:   3 (use --types to show)
+  Indirect:        358 (use --indirect to show)
+
+  Runtime Dependencies
+--------------------------
+  [✓] express
+  [✓] lodash
+  [✓] axios
+
+  Tool Packages
+--------------------------
+  [✓] jest
+  [✓] eslint
 
   Unused Dependencies
 --------------------------
   [x] moment
   [x] chalk
-  [x] typescript
 ```
+
+使用 `--indirect` 参数：
+
+```
+  Indirect Dependencies
+--------------------------
+  Total: 358
+
+  Top Shared
+  --------------------------
+  clsx                 (4 parents)
+  scheduler            (3 parents)
+  redux                (2 parents)
+
+  Use --indirect-all to show all packages.
+```
+
+**说明：**
+- `@types/*` 包单独统计，不包含在 Runtime/Tool/Unused 列表中
+- **Runtime Dependencies**：来自 `dependencies`（生产环境依赖）
+- **Tool Packages**：来自 `devDependencies`（构建工具、测试框架等）
+- 在 `.depx.yml` 中启用 `lock_file: true`（默认开启）可查看间接依赖数量
 
 ### 影响面分析
 
 ```bash
-# 分析依赖影响面
-depx surface
+depx surface              # 仅 runtime 依赖
+depx surface --dev        # 包含 devDependencies
+depx surface -D
+depx surface --indirect   # 共享传递依赖摘要
+depx surface -i
 ```
 
 输出示例：
 
 ```
-  Dependency Surface Area
+  Surface Area
+===================================
+
+  Summary
 --------------------------
-  axios
+  Packages:     10
+  High:         2
+  Medium:       3
+  Low:          5
+
+  Most Critical
+--------------------------
+  @mui/material
+  Score: 64
+
+  Runtime Surface
+--------------------------
+  @mui/material
+    Criticality: High
     Files: 43
     Modules: 8
-    References: 182
-    Criticality: High
+    Ref Count: 182
 
   chalk
+    Criticality: Low
     Files: 4
     Modules: 1
-    References: 6
-    Criticality: Low
+    Ref Count: 6
+
+  Indirect Packages
+--------------------------
+
+  Total: 531
+
+  Top Shared Dependencies
+--------------------------
+
+  clsx
+    Required By: 4 direct packages
+
+  scheduler
+    Required By: 3 direct packages
 ```
+
+**说明：**
+- 默认分析 **runtime surface**（仅 `dependencies`）
+- **Score** = `RefCount × 5 + Modules` — 简洁直观，无重复计权
+- **Criticality** 采用**百分位排名** — Top 20% = High，Top 50% = Medium，其余 = Low。无论项目大小都有清晰的层次区分
+- `--indirect` 显示传递依赖总数 + 被 **2 个以上** direct package 依赖的共享包
+- 共享间接依赖图需要 `package-lock.json`（推荐 lockfile v2+）
+- `@types/*` 完全排除
+
+## 配置
+
+在项目根目录创建 `.depx.yml`：
+
+```yaml
+ignore:
+  - "@types/node"
+  - "typescript"
+
+exclude_dirs:
+  - "vendor"
+  - "dist"
+  - "node_modules"
+
+exclude_files:
+  - "*.test.js"
+  - "*.spec.ts"
+
+read_node_modules: false
+lock_file: true
+```
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `ignore` | `[]` | 跳过这些包的检测 |
+| `exclude_dirs` | `node_modules`, `vendor`, `dist`, `build` | 跳过的目录名（basename） |
+| `exclude_files` | `[]` | 跳过的文件 glob 模式 |
+| `read_node_modules` | `false` | 是否扫描 `node_modules` |
+| `lock_file` | `true` | 是否启用 lock file 分析 |
 
 ## 架构
 
@@ -164,227 +262,53 @@ depx surface
 depx
 ├── cmd/
 │   ├── root.go                  # 根命令
-│   ├── root_test.go
 │   ├── scan.go                  # 扫描子命令
-│   ├── scan_test.go
-│   ├── surface.go               # 影响面分析命令
-│   └── surface_test.go
+│   ├── surface.go               # 影响面分析
+│   └── config.go                # 配置加载辅助
 ├── internal/
-│   ├── analyzer/
-│   │   ├── unused.go            # 核心扫描逻辑
-│   │   └── unused_test.go
-│   ├── config/
-│   │   ├── config.go            # .depx.yml 解析
-│   │   └── config_test.go
-│   ├── filter/
-│   │   ├── file.go              # 文件/目录排除规则
-│   │   └── file_test.go
-│   ├── lockfile/
-│   │   ├── lockfile.go          # 统一接口
-│   │   └── lockfile_test.go
-│   ├── manifest/
-│   │   ├── cargo.go             # Cargo.toml 解析器
-│   │   ├── cargo_test.go
-│   │   ├── gomod.go             # go.mod 解析器
-│   │   ├── manifest.go          # Manifest 接口
-│   │   ├── manifest_test.go
-│   │   ├── npm.go               # package.json 解析器
-│   │   ├── pip.go               # requirements.txt 解析器
-│   │   └── pip_test.go
-│   ├── report/
-│   │   ├── terminal.go          # 终端输出
-│   │   └── terminal_test.go
-│   ├── surface/
-│   │   ├── surface.go           # 核心逻辑
-│   │   └── surface_test.go
-│   └── usage/
-│       ├── boundary_test.go     # 边界条件测试
-│       ├── golang.go            # Go import 分析
-│       ├── golang_test.go
-│       ├── js.go                # JS/TS import 分析
-│       ├── js_test.go
-│       ├── python.go            # Python import 分析
-│       ├── python_test.go
-│       ├── rust.go              # Rust use 分析
-│       ├── rust_test.go
-│       └── usage.go             # Analyzer 接口
-├── tests/
-│   ├── integration_test.go      # 端到端测试
-│   └── helpers/
-│       └── helpers.go           # 测试辅助函数
-├── testdata/
-│   ├── edge-all-used/
-│   │   ├── index.js
-│   │   └── package.json
-│   ├── edge-empty/
-│   │   ├── index.js
-│   │   └── package.json
-│   ├── edge-large/
-│   │   ├── index.js
-│   │   └── package.json
-│   ├── edge-no-source/
-│   │   └── package.json
-│   ├── edge-none-used/
-│   │   ├── index.js
-│   │   └── package.json
-│   ├── edge-special-chars/
-│   │   ├── index.ts
-│   │   └── package.json
-│   ├── go-complex/
-│   │   ├── handlers/
-│   │   │   ├── handlers.go
-│   │   │   └── handlers_test.go
-│   │   ├── go.mod
-│   │   └── main.go
-│   ├── go-project/
-│   │   ├── go.mod
-│   │   └── main.go
-│   ├── npm-complex/
-│   │   ├── src/
-│   │   │   ├── __tests__/
-│   │   │   │   └── index.test.ts
-│   │   │   ├── hooks/
-│   │   │   │   └── useApi.ts
-│   │   │   ├── Component.vue
-│   │   │   └── index.ts
-│   │   └── package.json
-│   ├── npm-project/
-│   │   ├── index.js
-│   │   └── package.json
-│   ├── python-complex/
-│   │   ├── app.py
-│   │   ├── database.py
-│   │   ├── models.py
-│   │   └── requirements.txt
-│   ├── python-project/
-│   │   ├── main.py
-│   │   └── requirements.txt
-│   ├── real-npm/
-│   │   ├── src/
-│   │   │   ├── utils/
-│   │   │   │   ├── api.js
-│   │   │   │   └── helpers.js
-│   │   │   ├── index.js
-│   │   │   └── server.js
-│   │   └── package.json
-│   ├── rust-complex/
-│   │   ├── src/
-│   │   │   ├── handlers.rs
-│   │   │   └── main.rs
-│   │   └── Cargo.toml
-│   ├── rust-project/
-│   │   ├── Cargo.toml
-│   │   └── main.rs
-│   ├── config-project/
-│   │   ├── .depx.yml
-│   │   ├── index.js
-│   │   └── package.json
-│   ├── complex-mixed/
-│   │   ├── Cargo.toml
-│   │   ├── go.mod
-│   │   ├── package.json
-│   │   ├── requirements.txt
-│   │   ├── index.js
-│   │   ├── main.go
-│   │   ├── main.py
-│   │   └── lib.rs
-│   ├── complex-npm-workspaces/
-│   │   ├── package.json
-│   │   └── packages/
-│   │       ├── core/
-│   │       │   ├── package.json
-│   │       │   └── index.ts
-│   │       └── utils/
-│   │           ├── package.json
-│   │           └── index.ts
-│   ├── complex-cargo-workspaces/
-│   │   ├── Cargo.toml
-│   │   ├── src/
-│   │   │   └── main.rs
-│   │   └── crates/
-│   │       ├── core/
-│   │       │   ├── Cargo.toml
-│   │       │   └── src/
-│   │       │       └── lib.rs
-│   │       └── utils/
-│   │           ├── Cargo.toml
-│   │           └── src/
-│   │               └── lib.rs
-│   ├── error-corrupted-lockfile/
-│   │   ├── index.js
-│   │   ├── package.json
-│   │   └── package-lock.json
-│   ├── error-invalid-json/
-│   │   └── package.json
-│   └── error-invalid-toml/
-│       ├── Cargo.toml
-│       └── main.rs
-├── .gitignore
-├── build.ps1                    # 构建脚本（自动从 Git tag 获取版本）
-├── install.ps1                  # Windows 安装脚本
-├── LICENSE
-├── main.go                      # 入口文件
-├── README.md                    # 文档（英文）
-├── README_zh.md                 # 文档（中文）
-├── go.mod                       # Go 模块定义
-└── go.sum                       # Go 依赖校验文件
-```
-
-## 配置
-
-在项目根目录创建 `.depx.yml`：
-
-```yaml
-# 忽略特定依赖
-ignore:
-  - "@types/node"
-  - "typescript"
-
-# 排除目录
-exclude_dirs:
-  - "vendor"
-  - "dist"
-  - "node_modules"
-
-# 排除文件模式
-exclude_files:
-  - "*.test.js"
-  - "*.spec.ts"
-
-# 读取 node_modules 进行精确分析
-read_node_modules: false
-
-# 启用 Lock File 分析
-lock_file: true
+│   ├── analyzer/                # 扫描编排
+│   ├── config/                  # .depx.yml 解析
+│   ├── filter/                  # 文件排除规则
+│   ├── lockfile/                # Lock file 解析器
+│   ├── manifest/                # 清单解析器（npm/go/cargo/pip）
+│   ├── report/                  # 终端输出
+│   ├── surface/                 # 影响面分析
+│   └── usage/                   # 各语言 import 分析器
+├── tests/                       # 集成测试
+└── testdata/                    # 测试夹具
 ```
 
 ## 技术实现
 
-- **语言**: Go
+- **语言**: Go 1.26+
 - **CLI 框架**: cobra
 - **输出着色**: fatih/color
 - **YAML 解析**: gopkg.in/yaml.v3
-- **依赖检测**: 正则匹配 + 状态机注释过滤
+- **依赖检测**: 正则匹配 + 状态机注释/字符串过滤
 
-核心流程：
+**核心流程：**
 
-1. 检测项目类型（npm/go/cargo/pip）
-2. 解析清单文件获取依赖列表
-3. 解析 Lock File（如果可用）
-4. 从 `.depx.yml` 加载配置
-5. 遍历源码文件提取 import 语句
-6. 过滤注释和字符串字面量
-7. 匹配依赖声明与实际使用
-8. 分析影响面
-9. 生成报告
+1. 检测项目类型（优先级：npm → go → cargo → pip）
+2. 解析清单文件获取声明的依赖
+3. 遍历源码提取 import
+4. 匹配声明与使用情况
+5. 可选解析 lock file 获取传递依赖
+6. 生成终端报告
+
+**清单检测：** 若存在多个清单文件（如 `package.json` + `go.mod`），npm 优先，仅分析 npm 依赖。
 
 ## 限制
 
-- 仅检测直接依赖，不分析传递依赖
-- npm 项目中 `@types/*` 包始终显示为未使用（TypeScript 编译器自动加载）
-- Go 项目中自动排除 `// indirect` 标记的间接依赖
-- Python 包名可能与 import 名不一致（如 `pip install Pillow` → `import PIL`）
+- **使用检测**为静态分析 — 动态 import、反射、代码生成可能导致误报/漏报
+- **scan** 检查 manifest 中的直接声明（`dependencies` + `devDependencies`）；**surface** 默认仅分析 runtime `dependencies`
+- **间接依赖列表**（`scan --indirect`）来自 lock file，不追踪传递依赖在源码中的使用
+- **共享间接依赖图**（`surface --indirect`）仅支持 npm `package-lock.json`
+- **Workspaces** — 仅分析根目录 manifest，不递归分析 workspace 子包
+- **npm `@types/*`** — scan 中单独统计；surface 中排除；通常不在源码中直接 import
+- **Go `// indirect`** — 从 manifest 依赖列表中排除
+- **Python** — 包名可能与 import 名不一致（如 `pip install Pillow` → `import PIL`）
+- **exclude_dirs** 仅匹配目录 **basename**，不匹配完整路径
 
 ## 许可证
 
-GPLv3 - 详见 [LICENSE](LICENSE)。
+GPLv3 — 详见 [LICENSE](LICENSE)。
